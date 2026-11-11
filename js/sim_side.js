@@ -273,6 +273,7 @@
     if (def.ai === 'school' && this.creatures.some(function (q) { return q.type === id && !q.dead && q.x > this.viewRight() - 300; }, this)) {
       id = this.foodPick(); def = CR[id];
     }
+    if (x !== undefined && (def.sband === 'floor' || (SM[id] && SM[id].p === 'FLOOR'))) x = Math.max(x, this.viewRight() + SD.spawnAhead);          // UC-OE-110: floor creatures also come in >= 240 units beyond the view edge (also at the level start)
     var n0 = this.creatures.length, c = this.spawnSide(id, { x: x, size: forceSize }), fresh, self = this;
     if (!c) return c;
     fresh = this.creatures.slice(n0);
@@ -565,7 +566,7 @@
       fresh = this.creatures.slice(n0);
       fresh.forEach(function (c) { c.batch = batch; });
       // a big single straight mover (giant squid, leviathan...) leaves a free corridor on one side only when it sits near the top or the bottom of the play band: fit its lane
-      if (fresh.length === 1 && fresh[0].br > 90 && sm.p !== 'FLOOR' && sm.p !== 'AMBUSH_DASH' && sm.p !== 'STATIC' && sm.p !== 'BOSS' && (fresh[0].br > 130 || ((sm.p === 'STRAIGHT' || sm.p === 'ONE_TURN') && !(fresh[0].mv && fresh[0].mv.segs && fresh[0].mv.segs.some(function (sg) { return sg.vy; }))))) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, SD.corridor + CORR_MARGIN);
+      if (fresh.length === 1 && fresh[0].br > 90 && sm.p !== 'FLOOR' && sm.p !== 'AMBUSH_DASH' && sm.p !== 'STATIC' && sm.p !== 'BOSS' && (fresh[0].br > 130 || ((sm.p === 'STRAIGHT' || sm.p === 'ONE_TURN') && !(fresh[0].mv && fresh[0].mv.segs && fresh[0].mv.segs.some(function (sg) { return sg.vy; }))))) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, SD.corridor + CORR_MARGIN + 30);
       if (fresh.length && this.fairOK(fresh) && this.fairOver(fresh, null, strict)) { this.fairFails = 0; return fresh[0]; }
       this.creatures.length = n0;
     }
@@ -585,7 +586,7 @@
     if (hasT) {
       S.peerT = (S.peerT === undefined ? I * 3 * 0.6 : S.peerT) - dt;
       if (S.peerT <= 0) { S.peerT = I * 3; this.ev.peer++; if (this.foodCost() < cap) { pk = this.peerPick(); this.spawnPrey(undefined, pk.id, pk.size); } }
-      var holdBoss = (S.bossWait || 0) > (BAL.BOSS_HOLD === undefined ? 3 : BAL.BOSS_HOLD);                                 // a boss ring waits for a free corridor: no new threat until it has gone out
+      var holdBoss = (S.bossWait || 0) > (BAL.BOSS_HOLD === undefined ? 3 : BAL.BOSS_HOLD) || this.bossBusy();       // boss priority: no normal threat while a boss wave is queued, telegraphed or on its way;                                 // a boss ring waits for a free corridor: no new threat until it has gone out
       var preds = (ld.pred || []).length && !this.bossIsScripted(), hazs = (ld.haz || []).length, np = 0, hz = {}, nh = 0, k2, cc;
       for (k2 = 0; k2 < this.creatures.length; k2++) { cc = this.creatures[k2]; if (cc.dead || cc.bossAtk) continue; if (cc.role === 'predator' && cc.x > this.cam.x - 200) np++; else if (cc.role === 'hazard' && !hz[cc.type]) { hz[cc.type] = 1; nh++; } }
       if (preds) {
@@ -689,14 +690,14 @@
     return true;
   };
   P.addColumns = function (n) {
-    var p = this.player, i, base = p.x + this.fwdBase() * 1.6;
+    var p = this.player, i, base = this.viewRight() + this.fwdBase() * 1.3 + 100 - 260;                // CR-4 round 7: outside the view with a lead of >= 1.0 s (red marker) before the telegraph starts
     for (i = 0; i < n; i++) {
       var col, tr;
       for (tr = 0; tr < 12; tr++) {                                                  // re-lane the gap until the corridor rule holds against the threats on the way (the last try is kept: boss columns always come)
         col = { id: this.nextId, kind: 'column', x: base + 260 + i * 330, vx: 0, gapY: this.rng.range(this.waterY + 170, this.gapMaxY(this.gapFor(), FLOOR - 110)), gapH: this.gapFor(), w: 96, st: 'tele', t: 0, tele: SD.boss.tentWarnS, life: 1.4 };
         if (this.fairOver([], [col])) break;
       }
-      this.nextId++; this.objs.push(col);
+      col.lead = (col.x - col.w / 2 - this.viewRight()) / Math.max(60, this.fwd); this.nextId++; this.objs.push(col);
     }
   };
   P.updateBossSide = function (dt) {

@@ -397,7 +397,7 @@
 
   /* ---- one fixed step ---- */
   P.step = function (dt) {
-    if (this.side) return this.stepSide(dt);
+    if (this.side) { this.stepSide(dt); this.stampLeads(); return; }
     if (this.halted || this.ended === 'win') return;
     this.stepNo++; this.t += dt;
     this.player.ptr.x = this.player.ptr.sx / BAL.ZOOM + this.cam.x; this.player.ptr.y = this.player.ptr.sy / BAL.ZOOM + this.cam.y;   // a held pointer follows the scrolling view
@@ -414,6 +414,7 @@
       this.spawnLogic(dt);
     } else { this.updateObjs(dt); }
     this.checkEnd();
+    this.stampLeads();                                                    // the warning lead of every blocker is recorded the step it appears (state().blockers.warnLead)
   };
   P.checkEnd = function () { /* CR-3: the level ends through Game (goal banner, bonus phase, Finish, goal + 2, hearts 0 after the goal) */ };
   // advance by ms of simulated time (fixed 60 Hz)

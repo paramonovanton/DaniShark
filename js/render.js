@@ -525,9 +525,16 @@
         ctx.beginPath(); ctx.arc(o.x, o.y, o.r, o.gap + o.gapW / 2, o.gap - o.gapW / 2 + TAU); ctx.stroke(); ctx.restore();
       } else if (o.kind === 'mine' || o.kind === 'frock' || (o.kind === 'crock' && o.st !== 'gone')) {
         if (o.x < cam - 200 || o.x > cam + VW + 200) continue;
+        pocket(o.x, o.y === undefined ? BAL.seabedY - 30 : o.y, 220, 0.18);
         ctx.save(); ctx.shadowColor = '#ffb050'; ctx.shadowBlur = 24; ctx.lineWidth = 6; ctx.strokeStyle = '#ffcf5a';
         ctx.beginPath(); ctx.arc(o.x, o.y === undefined ? BAL.seabedY - 30 : o.y, (o.r || 30) + 12, 0, TAU); ctx.stroke(); ctx.restore();
       }
+    }
+    for (i = 0; i < sim.obs.length; i++) {                                           // CR-4: moving structures (World 7) glow like the other blockers
+      o = sim.obs[i];
+      if (o.kind !== 'struct' || o.x + o.w < cam - 120 || o.x - o.w > cam + VW + 120) continue;
+      pocket(o.x, o.y, Math.max(340, o.h), 0.22);
+      ctx.save(); this.glowRect(ctx, o.x - o.w / 2, o.y - o.h / 2, o.w, o.h, '#c9a8ff', 0.3); ctx.restore();
     }
     for (i = 0; i < sim.zones.length; i++) {
       o = sim.zones[i];

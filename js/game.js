@@ -534,7 +534,8 @@
       out.bossPhase = s.phaseNow(); out.jump = s.jumpState();
       out.player = { x: p.x, y: p.y, vx: p.vx, vy: p.vy, len: p.len, bodyR: p.r, mouthR: BAL.BODY.mouthR * p.len, spriteScale: p.len / nat, spriteNaturalLen: nat, screenLen: p.len * BAL.ZOOM };
       out.camera = { x: s.cam.x, y: s.cam.y }; out.zoom = BAL.ZOOM; out.view = { w: s.viewW, h: s.viewH() }; out.skyHeight = s.deep ? 0 : Math.max(0, s.scrY(s.waterY)); out.waterline = s.deep ? null : s.scrY(s.waterY);
-      for (i = 0; i < s.objs.length; i++) { var bo = s.objs[i]; if (bo.kind === 'wall' || bo.kind === 'swall' || bo.kind === 'column' || bo.kind === 'mine') out.blockers.push({ id: bo.id, kind: bo.kind, x: bo.x, y: bo.gapY !== undefined ? bo.gapY : bo.y, gapH: bo.gapH || 0, w: bo.w || 0, state: bo.st || '' }); }
+      out.blockers = s.blockerList();                                                         // wall / swall / column / mine (Side) and struct / shockring / tentacle (Classic) with glowPx, pocketR, contrast, warnLead, visible
+      out.gpC = s.side ? 1 : (((BAL.GP_C || {})[r.world] || [])[r.level - 1] || 1);              // the pacing factor on the GP of a bite (Side-scroller 1.0, Classic the per-level value)
       out.controlMode = s.controlMode; out.forwardSpeed = s.side ? s.fwd : 0; if (s.side) { out.threats = s.threatMarkers(); out.markers = out.threats.map(function (m) { var sy = s.scrY(m.y); return { id: m.id, kind: m.kind, y: m.y, screenY: Math.max(190, Math.min(1000, sy)), edge: sy < 190 ? 'up' : (sy > 1000 ? 'down' : null) }; }); }
       out.coinsCollected = s.coins; out.replay = r.replay; out.waterY = s.waterY; out.invuln = p.invuln;
       for (i = 0; i < s.creatures.length; i++) { var c = s.creatures[i]; out.creatures.push({ id: c.id, type: c.type, x: c.x, y: c.y, vx: c.vx, vy: c.vy, pattern: c.mv ? c.mv.pat : (s.side ? '' : 'CLASSIC'), size: c.size, len: c.len, role: c.role, state: c.state, hidden: c.hidden }); }

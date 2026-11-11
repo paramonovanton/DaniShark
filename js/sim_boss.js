@@ -11,7 +11,7 @@
   var OE = g.OE, BAL = OE.BAL, U = OE.util, CR = OE.CREATURES, Sim = OE.Sim, P = Sim.prototype, BB = BAL.BOSSES, FLOOR = BAL.seabedY, clamp = U.clamp;
 
   P.bossInit = function () {
-    this.projs = []; this.bossTele = []; this.bossQ = []; this.finale = null; this.finaleBoss = null;
+    this.projs = []; this.bossTele = []; this.bossQ = []; this.finale = null; this.finaleBoss = null; this.bossHoldT = 0; this.bossSeq = 0; this.bossStats = { waves: 0, committed: 0, dropped: 0, purged: 0, maxWait: 0 };
     var L = this.level === 5 && BB.LIST[this.world];
     if (!L) { this.bossInfo = null; return; }
     var B = (this.world - 1) / 6;
@@ -29,7 +29,7 @@
   P.bossState = function () {
     var b = this.bossInfo; if (!b) return null;
     var lead = 0, i, t;
-    for (i = 0; i < this.bossTele.length; i++) { t = this.bossTele[i].until - this.t; if (t > lead) lead = t; }
+    for (i = 0; i < this.bossTele.length; i++) { t = Math.min(10, this.bossTele[i].until - this.t); if (t > lead) lead = t; }
     return { id: b.id, name: b.name, phase: this.phaseNow() || 1, pips: b.phases, pattern: b.pattern || '', edible: !!this.finale, finale: !!this.finale, nextTelegraphLead: Math.round(lead * 100) / 100 };
   };
 
@@ -54,8 +54,12 @@
   };
   // a scripted body never gets so big that the gap rule (>= BB.GAP_MIN on one side) cannot hold: its radius is capped (a pair in the fan: half), never below a predator (1.2 x S)
   P.capBr = function (c, cap) {
-    if (c.br <= cap) return;
-    c.size = Math.max(c.size * cap / c.br, 1.2 * this.S); this.sizeCreature(c); c.role = this.roleOf(c);
+    c.brCap = Math.min(cap, this.bossBrCap()); this.sizeCreature(c);
+  };
+  // the largest collider radius for which a single body still leaves a free corridor of GAP_MIN beside it in the sim's own metric (blockHalf = 0.9 br + the player's radius): shrinks with the player
+  P.bossBrCap = function () {
+    var r = this.player.r, v = (990 - this.waterY - 10 - (BB.GAP_MIN || 380) - r) / 1.9;
+    return Math.max(40, Math.min(BB.MAX_BR, v));
   };
   P.moveScr = function (c, dt) {
     c.vx = c.scr.vx; c.vy = c.scr.vy; if (c.warn > 0) c.warn = Math.max(0, c.warn - dt);
@@ -95,71 +99,147 @@
     var id = this.nextId++; this.bossTele.push({ id: id, y: y, until: this.t + s, kind: kind || 'lane' }); return id;
   };
   // run fn after `delay` seconds (the telegraph)
-  P.bossAt = function (delay, fn) { this.bossQ.push({ t: this.t + delay, fn: fn, wait: 0 }); };
+  P.bossAt = function (delay, fn) { var it = { t: this.t + delay, fn: fn, wait: 0 }; this.bossQ.push(it); return it; };
   // fairness: in the Side-scroller a wave that would break the corridor / window rule is delayed (0.25 s steps, up to 2 s) and then goes anyway
   P.bossFair = function (fresh, tries) {
     if (!this.side || !fresh.length) return true;
-    return this.fairOK(fresh) && this.fairOver(fresh, null, true);
+    return this.fairOK(fresh) && this.fairOver(fresh, null, true) && this.bossUnionFair(fresh);
   };
+  // QA's metric (UC-OE-76 / XR-OE-76-BOSS): over any 1.5 s look-ahead the bodies that overlap the player's column block [y - br, y + br] over the whole stretch they sweep while they overlap it;
+  // the largest free gap of the play band must stay >= 300. The extents are computed from the straight lines the scripted bodies fly (walls and the other threats included).
+  P.bossUnionFair = function (fresh) {
+    var p = this.player, Y0 = this.waterY + 20, Y1 = 990, self = this, win = 1.5, fs = [this.fwd, this.fwd * 0.6];          // the forward speed now and a slower one (current, seaweed, a bump): the crossing takes longer
+    return fs.every(function (f) { return self.bossUnionAt(fresh, f, p, Y0, Y1, win); });
+  };
+  P.bossUnionAt = function (fresh, fwd, p, Y0, Y1, win) {
+    var items = [], tmax = 0, ts, k;
+    function addBody(c) {
+      var half = c.len * 0.5 + p.len * 0.35, cl = fwd - (c.vx || 0), d = c.x - p.x, t0, t1, ya, yb;
+      if (cl < 60) return;
+      t0 = (d - half) / cl; t1 = (d + half) / cl; if (t1 < 0) return;
+      t0 = Math.max(0, t0); ya = c.y + (c.vy || 0) * t0; yb = c.y + (c.vy || 0) * t1;
+      items.push({ t0: t0, t1: t1, lo: Math.min(ya, yb) - c.br, hi: Math.max(ya, yb) + c.br });
+    }
+    this.creatures.forEach(function (c) { if (!c.dead && (c.role === 'predator' || c.role === 'hazard') && fresh.indexOf(c) < 0 && c.x > p.x - 400) addBody(c); });
+    fresh.forEach(function (c) { if (c.role === 'predator' || c.role === 'hazard') addBody(c); });
+    this.objs.forEach(function (o) {
+      if ((o.kind !== 'wall' && o.kind !== 'swall') || o.x < p.x - 100) return;
+      var cl = Math.max(60, fwd - (o.vx || 0)), t = (o.x - p.x) / cl, h = (o.w / 2 + p.r * 0.7) / cl;
+      items.push({ t0: Math.max(0, t - h), t1: t + h, lo: Y0, hi: o.gapY - o.gapH / 2 }, { t0: Math.max(0, t - h), t1: t + h, lo: o.gapY + o.gapH / 2, hi: Y1 });
+    });
+    items.forEach(function (it) { tmax = Math.max(tmax, it.t1); });
+    for (ts = 0; ts <= tmax + 0.05; ts += 0.1) {
+      var blocks = [], cur = Y0, gap = 0;
+      for (k = 0; k < items.length; k++) if (items[k].t1 >= ts && items[k].t0 <= ts + win) blocks.push([items[k].lo, items[k].hi]);
+      blocks.sort(function (a, b) { return a[0] - b[0]; });
+      blocks.forEach(function (b) { gap = Math.max(gap, b[0] - cur); cur = Math.max(cur, b[1]); }); gap = Math.max(gap, Y1 - cur);
+      if (gap < 300 + 8) return false;
+    }
+    return true;
+  };
+  // BOSS PRIORITY (QA round 7): while a wave is queued, telegraphed or on its way, the normal threat / hazard spawner holds; the normal threats that are still outside the view are removed, and
+  // the ones inside it that would make the wave unfair are removed after 0.5 s of waiting. A wave is therefore committed within about 1 s; the telegraph is shown for a wave that is going to come.
+  P.bossBusy = function () {
+    if (!this.bossInfo || !this.bossIsScripted() || this.finale) return false;
+    if (this.bossHoldT > this.t || this.bossQ.length) return true;
+    var i, c; for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; if (c.bossAtk && !c.dead && c.role !== 'prey' && c.x > this.cam.x - 300) return true; }
+    return false;
+  };
+  P.bossPurge = function (fromX) {
+    var i, c, n = 0;
+    for (i = 0; i < this.creatures.length; i++) {
+      c = this.creatures[i];
+      if (c.dead || c.bossAtk || c.boss || c.finaleBoss || c.def.k === 'pas' || (c.role !== 'predator' && c.role !== 'hazard') || c.x <= fromX) continue;
+      c.dead = true; n++;
+    }
+    if (n) this.bossStats.purged += n;
+    return n;
+  };
+  P.bossTeleHold = function (id, until) { var i; for (i = 0; i < this.bossTele.length; i++) if (this.bossTele[i].id === id) this.bossTele[i].until = until; };
   // a body that crosses horizontally keeps at least BB.GAP_MIN of free height on one side (a big boss in the middle lane would leave two narrow gaps)
   P.bossFitY = function (y, br, gap) {
-    var Y0 = this.waterY + 20, Y1 = 990, need = gap || BB.GAP_MIN || 380, lo = Y0 + need + br, hi = Y1 - need - br;    // lo: free above the body; hi: free below it
+    var Y0 = this.waterY + 20, Y1 = 990, need = gap || BB.GAP_MIN || 380, m = 0.9 * br + this.player.r, lo = Y0 + need + m, hi = Y1 - need - m;    // m = the room the player needs around the body; lo: free above the body; hi: free below it
     y = clamp(y, this.waterY + br + 10, Y1 - br);                              // where the body can really be (the sim clamps it to the play band)
-    if (y - br - Y0 >= need || Y1 - (y + br) >= need) return y;
-    if (hi < Y0 + br) return Math.max(y, lo);                                  // no room below at all: sit low
-    if (lo > Y1 - br) return Math.min(y, hi);
+    if (y - m - Y0 >= need || Y1 - (y + m) >= need) return y;
+    if (hi < this.waterY + br + 10) return clamp(lo, this.waterY + br + 10, Y1 - br);    // no room below: sit low
+    if (lo > Y1 - br) return clamp(hi, this.waterY + br + 10, Y1 - br);
     return Math.abs(y - hi) <= Math.abs(y - lo) ? hi : lo;
   };
   // the body radius a scripted species will have now (a throw-away spawn): lets a lane be fitted BEFORE its telegraph is shown
   P.bossBr = function (id) {
     var n0 = this.creatures.length, c = this.spawnCreature(id, this.cam.x + 5000, this.waterY + 400, { cross: true, facing: -1 }), br = c ? c.br : 60;
-    this.creatures.length = n0; return Math.min(br, BB.MAX_BR);
+    this.creatures.length = n0; return Math.min(br, BB.MAX_BR, this.bossBrCap());
   };
-  P.bossWave = function (build, delay) {
-    var self = this;
-    this.bossAt(delay, function (item) {
-      var n0 = self.creatures.length, made = build.call(self), fresh = self.creatures.slice(n0);
-      if (!fresh.length || self.bossFair(fresh)) return true;
-      fresh.forEach(function (c) { c.dead = true; });
-      self.creatures.length = n0;                                             // refused: undo and retry later
-      item.wait += 0.25; if (item.wait >= 4) return true;                      // never forced: a wave that finds no fair moment within 4 s is dropped (the next timer brings another)
+  // build() makes the bodies of the wave (it may add its own telegraph through bossTelegraph); teleId = a telegraph made BEFORE the wave (kept until the wave is committed, removed when it never comes)
+  // build(variant) makes the bodies of the wave (it may add its own telegraph through bossTelegraph); nVar = how many shapes the wave can take (a flatter angle, a single body... the first
+  // one that is fair for the current size of the player is committed); teleId = a telegraph made BEFORE the wave (kept until the wave is committed, removed when it never comes)
+  P.bossWave = function (build, delay, teleId, nVar) {
+    var self = this, st = this.bossStats, seq = ++this.bossSeq;
+    st.waves++;
+    this.bossHoldT = Math.max(this.bossHoldT, this.t + (delay || 0) + 2.5);
+    this.bossPurge(this.viewRight() - 100);
+    if (teleId) this.bossTeleHold(teleId, 1e9);
+    var qi = this.bossAt(delay, function (item) {
+      var v, n0 = self.creatures.length, t0 = self.bossTele.length, fresh;
+      if (self.bossQ.some(function (q) { return q.wave && q.seq < seq && q !== item; })) { item.t = self.t + 0.25; return false; }      // the waves go one after the other (two big bodies never arrive together)
+      for (v = 0; v < (nVar || 1); v++) {
+        build.call(self, v); fresh = self.creatures.slice(n0);
+        if (!fresh.length) { if (v === (nVar || 1) - 1) { if (teleId) self.bossTeleHold(teleId, 0); return true; } continue; }
+        if (self.bossFair(fresh)) {
+          st.committed++; st.maxWait = Math.max(st.maxWait, item.wait);
+          if (teleId) self.bossTeleHold(teleId, self.t + 0.1);
+          self.bossHoldT = Math.max(self.bossHoldT, self.t + 1.5);
+          return true;
+        }
+        fresh.forEach(function (c) { c.dead = true; });
+        self.creatures.length = n0; self.bossTele.length = Math.min(self.bossTele.length, t0);          // refused: undo (and its own telegraph), try the next shape
+      }
+      item.wait += 0.25;
+      if (item.wait >= 0.25 && !item.purged) { item.purged = true; self.bossPurge(self.player.x + 150); }
+      if (item.wait >= 2.0) { st.dropped++; if (teleId) self.bossTeleHold(teleId, 0); return true; }     // only a wave that is unfair in every shape is dropped (never with a false alarm)
       item.t = self.t + 0.25; return false;
     });
+    qi.wave = true; qi.seq = seq;
   };
 
   /* ---- the attack primitives ---- */
   P.atkCross = function (id, speed, band, warn) {
     var b = this.bossInfo, sp = speed * b.spMul, y = this.bossLane(band), self = this;
     var br = this.bossBr(id); y = this.bossFitY(clamp(y, this.waterY + br + 10, FLOOR - br - 6), br);
-    if (warn) { this.bossTelegraph(y, warn); }
-    this.bossWave(function () { var c = self.spawnScr(id, self.bossEdgeX(sp), y, -sp, 0, { warn: 0 }); if (c) c.y = y; return c; }, warn || 0);
+    var tg = warn ? this.bossTelegraph(y, warn) : 0;
+    this.bossWave(function () { var c = self.spawnScr(id, self.bossEdgeX(sp), y, -sp, 0, { warn: 0 }); if (c) c.y = y; return c; }, warn || 0, tg);
   };
   P.atkSchool = function (id, n, speed) {
     var y = this.bossLane('any'), self = this, sp = speed * this.bossInfo.spMul;
     this.bossAt(0, function () { var i, x0 = self.bossEdgeX(sp); for (i = 0; i < n; i++) { var c = self.spawnScr(id, x0 + i * 70, y + self.rng.range(-18, 18), -sp, 0); if (c) c.role = 'prey'; } return true; });
   };
   P.atkDiag = function (id, speed, deg, warn, fromFloor) {
-    var sp = speed * this.bossInfo.spMul, a = deg * Math.PI / 180, self = this, up = fromFloor || this.rng.chance(0.5), y0 = up ? FLOOR - 40 : this.waterY + 120;
-    this.bossTelegraph(y0, warn || BB.TELEGRAPH_S);
-    this.bossWave(function () { return self.spawnScr(id, self.bossEdgeX(sp), y0, -sp * Math.cos(a), (up ? -1 : 1) * sp * Math.sin(a)); }, warn || BB.TELEGRAPH_S);
+    var sp = speed * this.bossInfo.spMul, self = this, up = fromFloor || this.rng.chance(0.5), y0 = up ? FLOOR - 40 : this.waterY + 120, angs = [deg, deg * 0.5, 6];
+    var tg = this.bossTelegraph(y0, warn || BB.TELEGRAPH_S);
+    this.bossWave(function (v) { var a = angs[v] * Math.PI / 180; return self.spawnScr(id, self.bossEdgeX(sp), y0, -sp * Math.cos(a), (up ? -1 : 1) * sp * Math.sin(a)); }, warn || BB.TELEGRAPH_S, tg, angs.length);   // flatter angles when the steep one would sweep a whole column
   };
+
   P.atkFan = function (n, deg, gapDeg) {
     // two lionfish cross slowly in a top and a bottom lane (the corridor between them stays >= 380); one flares (1.0 s) and fires a fan of straight spines.
-    // The pair goes through the fairness-checked wave; the flare and the fan follow once it exists
+    // A pair that is too big for the corridor (a big player means big lionfish) becomes ONE lionfish in the top or the bottom lane. The wave goes through the fairness-checked commit;
+    // the flare and the fan follow once it exists
     var b = this.bossInfo, self = this, sp = 200 * b.spMul, flip = this.rng.chance(0.5), shooter = null;
-    this.bossWave(function () {
-      var x0 = self.bossEdgeX(sp), a = self.spawnScr('lionfish', x0, self.waterY + 130, -sp, 0, { maxBr: BB.MAX_BR / 2 }), c = self.spawnScr('lionfish', x0 + 260, FLOOR - 120, -sp, 0, { maxBr: BB.MAX_BR / 2 });
-      if (!a || !c) return null;
-      a.y = self.waterY + 20 + a.br; c.y = 990 - c.br;                         // the top and the bottom edge of the play band: the corridor between them is the widest it can be
-      shooter = flip ? a : c; shooter.warn = 0; self.bossTelegraph(shooter.y, 2.4);
-      return a;
-    }, 0);
+    this.bossWave(function (v) {
+      var x0 = self.bossEdgeX(sp), a = null, c = null;
+      if (v === 0) { a = self.spawnScr('lionfish', x0, self.waterY + 130, -sp, 0, { maxBr: BB.MAX_BR / 2 }); c = self.spawnScr('lionfish', x0 + 260, FLOOR - 120, -sp, 0, { maxBr: BB.MAX_BR / 2 }); if (!a || !c) return null; }
+      else if (v === 1) a = self.spawnScr('lionfish', x0, self.waterY + 130, -sp, 0, { maxBr: BB.MAX_BR });
+      else c = self.spawnScr('lionfish', x0, FLOOR - 120, -sp, 0, { maxBr: BB.MAX_BR });
+      if (a) a.y = self.waterY + 20 + a.br; if (c) c.y = 990 - c.br;            // the top and the bottom edge of the play band: the corridor is the widest it can be
+      shooter = v === 0 ? (flip ? a : c) : (a || c); shooter.warn = 0; self.bossTelegraph(shooter.y, 2.4);                // (undone with the bodies when the wave is refused)
+      return shooter;
+    }, 0, 0, 3);
     this.bossAfter(function () { return shooter; }, 1.4, function () { shooter.warn = 1.0; });
     this.bossAfter(function () { return shooter; }, 2.4, function () {
       var i, base = Math.PI, step = (gapDeg || 15) * Math.PI / 180, mid = (n - 1) / 2, spd = 450 * b.spMul;
       for (i = 0; i < n; i++) { var ang = base + (i - mid) * step; self.addProj(shooter.x - shooter.len * 0.3, shooter.y, Math.cos(ang) * spd, Math.sin(ang) * spd, 'spine', 14); }
     });
   };
+
   // run fn `delay` seconds after the creature that get() returns has been spawned (wait up to 6 s for it; nothing happens when it never comes or is gone)
   P.bossAfter = function (get, delay, fn) {
     var self = this, t0 = null;
@@ -173,9 +253,9 @@
   };
   P.atkSub = function (mines, sonar) {
     var b = this.bossInfo, self = this, sp = 140 * b.spMul, br = this.bossBr('submarine'), y = this.bossFitY(clamp(this.bossLane('mid'), this.waterY + br + 10, FLOOR - br - 6), br), sub = null;
-    if (sonar) this.bossTelegraph(y, 2.0);
+    var tg = sonar ? this.bossTelegraph(y, 2.0) : 0;
     // the submarine comes through the fairness-checked wave; its sonar ping and its mines follow once it exists (a wave that finds no fair moment is dropped with them)
-    this.bossWave(function () { var c = self.spawnScr('submarine', self.bossEdgeX(sp), y, -sp, 0); if (c) { c.y = y; sub = c; } return c; }, 0);
+    this.bossWave(function () { var c = self.spawnScr('submarine', self.bossEdgeX(sp), y, -sp, 0); if (c) { c.y = y; sub = c; } return c; }, 0, tg);
     function after(delay, fn) { self.bossAfter(function () { return sub; }, delay, fn); }
     if (sonar) after(1.0, function () { self.emit('sonar', { x: sub.x, y: sub.y }); });
     after(2.0, function () { var i; for (i = 0; i < mines; i++) self.objs.push({ id: self.nextId++, kind: 'mine', x: sub.x - 80 + i * 110, y: sub.y + 40, vy: 200, life: 8 }); });
@@ -203,15 +283,17 @@
     this.bossAt(1.0, function () { self.zones.push({ id: self.nextId++, kind: 'lava', x: x, y: FLOOR - 40, w: 420, h: 80, cd: 0, boss: true, until: self.t + 4 }); return true; });
   };
   P.atkDash = function (id, speed, warn, up, deg) {
-    // an ambush dash from the floor (anglerfish) or a horizontal rush (mosasaurus): a warning flash, then one straight line
-    var b = this.bossInfo, self = this, sp = speed * b.spMul, x = this.bossEdgeX(150) - this.rng.range(0, 300), a = (deg || 0) * Math.PI / 180, ySt = up ? FLOOR - 60 : this.bossLane('mid');
-    this.bossTelegraph(ySt, warn);
-    this.bossWave(function () {
-      var vx = up ? -sp * Math.sin(a) - 80 : -sp, vy = up ? -sp * Math.cos(a) : 0, c = self.spawnScr(id, up ? self.player.x + self.rng.range(300, 700) : self.bossEdgeX(sp), ySt, vx, vy);
-      if (c) { c.warn = 0; if (up) c.y = FLOOR - c.br - 6; }
+    // an ambush dash from the floor (anglerfish) or a horizontal rush (mosasaurus): a warning flash, then one straight line (the floor dash flattens when the steep one would sweep a whole column)
+    var b = this.bossInfo, self = this, sp = speed * b.spMul, ySt = up ? FLOOR - 60 : this.bossLane('mid'), angs = [deg || 0, 50, 70, 84];
+    if (!up) { var brd = this.bossBr(id); ySt = this.bossFitY(clamp(ySt, this.waterY + brd + 10, FLOOR - brd - 6), brd); }
+    var tg = this.bossTelegraph(ySt, warn), px0 = this.rng.range(300, 700);
+    this.bossWave(function (v) {
+      var a = angs[v] * Math.PI / 180, vx = up ? -sp * Math.sin(a) - 80 : -sp, vy = up ? -sp * Math.cos(a) : 0, c = self.spawnScr(id, up ? self.player.x + px0 : self.bossEdgeX(sp), ySt, vx, vy);
+      if (c) { c.warn = 0; if (up) c.y = FLOOR - c.br - 6; else c.y = ySt; }
       return c;
-    }, warn);
+    }, warn, tg, up ? angs.length : 1);
   };
+
 
   /* ---- the schedule by world and phase (BAL.BOSSES.LIST in the spec: World 1 baseline, every interval x (1 - 0.35 B)) ---- */
   P.bossTimers = function (ph) {
@@ -231,8 +313,8 @@
       if (ph >= 2) every('decoy', 12, function () { var y = self.bossLane('any'); self.bossAt(0, function () { var c = self.spawnScr('lanternfish', self.bossEdgeX(120), y, -120, 0); if (c) { c.role = 'prey'; c.size = self.S * 0.5; } return true; }); });
       this.dark = ph === 1 ? 300 : 260;
     } else if (w === 4) {
-      every('line', 10, function () { self.atkCross('orca', 300, 'mid', 1.0); self.bossAt(0.2, function () { self.atkCross('orca', 300, 'low', 0); return true; }); });
-      if (ph >= 2) every('vee', 9, function () { self.atkCross('orca', 300, 'top', 1.0); self.atkCross('orca', 300, 'mid', 1.0); self.atkCross('orca', 300, 'low', 1.0); });
+      every('line', 10, function () { self.atkCross('orca', 300, 'mid', 1.0); self.bossAt(1.6, function () { self.atkCross('orca', 300, 'low', 0); return true; }); });
+      if (ph >= 2) every('vee', 9, function () { self.atkCross('orca', 300, 'top', 1.0); self.bossAt(1.6, function () { self.atkCross('orca', 300, 'mid', 0); return true; }); self.bossAt(3.2, function () { self.atkCross('orca', 300, 'low', 0); return true; }); });
       if (ph === 3) every('lead', 8, function () { self.atkDiag('orca', 300, 30, 1.0, false); });
     } else if (w === 5) {
       every('sonar', 6, function () { self.atkSub(ph === 1 ? 2 : 3, true); });
@@ -286,5 +368,63 @@
   P.eatBoss = function () {
     var c = this.finaleBoss; if (!this.finale || !c || c.dead) return false;
     this.eatCreature(c); return true;
+  };
+
+  /* ---- blockers (UC-OE-107): the list the QA hooks read, the warning lead, the spawn hook ---- */
+  var BLOCK_COL = { wall: '#ffe066', swall: '#ff8af5', column: '#ffb050', shockring: '#ff8af5', tentacle: '#ffb050', mine: '#ffcf5a', struct: '#c9a8ff' };
+  var BLOCK_GLOW = { wall: 22, swall: 22, column: 22, shockring: 30, tentacle: 22, mine: 24, struct: 22 };
+  function lum(hex) {
+    var v = [1, 3, 5].map(function (i) { var c = parseInt(hex.substr(i, 2), 16) / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+  }
+  // blocker class of an object / obstacle ('' = not a blocker); Classic rings and tentacles are the shock ring and the tentacle column of the Bloop and of the W7 shock sources
+  P.blockerKind = function (o, isObs) {
+    if (isObs) return o.kind === 'struct' ? 'struct' : '';
+    switch (o.kind) { case 'wall': case 'swall': case 'column': case 'mine': return o.kind; case 'ring': return 'shockring'; case 'tent': return 'tentacle'; default: return ''; }
+  };
+  // the warning lead in seconds: how long before it can reach the player's side of the view it exists (and is announced); stamped once
+  P.stampLeads = function () {
+    var i, o, sp, vr = this.viewRight(), fwd = this.side ? this.fwd : this.pmax();
+    for (i = 0; i < this.objs.length; i++) {
+      o = this.objs[i]; if (o.lead !== undefined) continue;
+      if (o.kind === 'ring') o.lead = Math.max(0, (Math.hypot(this.player.x - o.x, this.player.y - o.y) - o.r) / o.v);
+      else if (o.kind === 'tent') o.lead = 1.0;
+      else if (o.kind === 'mine') o.lead = Math.max(0, (o.x - vr) / Math.max(60, fwd));
+      else if (o.x !== undefined) { sp = Math.max(60, fwd + Math.abs(o.vx || 0)); o.lead = Math.max(0, (o.x - (o.w || 0) / 2 - vr) / sp); }
+    }
+    for (i = 0; i < this.obs.length; i++) { o = this.obs[i]; if (o.kind === 'struct' && o.lead === undefined) o.lead = Math.max(0, (o.x - (o.w || 0) / 2 - vr) / Math.max(60, fwd)); }
+  };
+  P.blockerList = function () {
+    var out = [], i, o, k, cam = this.cam.x, vw = this.viewW, self = this, bg = lum('#0a0618');
+    function add(o, isObs) {
+      k = self.blockerKind(o, isObs); if (!k) return;
+      var gapH = o.gapH || (o.h || 0), pocket = (o.kind === 'ring') ? o.r + 220 : (o.kind === 'mine' ? 220 : (isObs ? Math.max(340, o.h * 1.0) : Math.max(340, (o.gapH || 0) * 1.5)));
+      out.push({ id: o.id, kind: k, x: o.x, y: o.gapY !== undefined ? o.gapY : o.y, gapH: o.gapH || 0, w: o.w || 0, state: o.st || '', glowPx: BLOCK_GLOW[k] || 22, pocketR: Math.round(pocket),
+        contrast: Math.round((lum(BLOCK_COL[k] || '#ffe066') + 0.05) / (bg + 0.05) * 10) / 10, warnLead: o.lead !== undefined ? Math.round(o.lead * 100) / 100 : 0,
+        visible: o.x + (o.w || 0) / 2 >= cam && o.x - (o.w || 0) / 2 <= cam + vw });
+    }
+    for (i = 0; i < this.objs.length; i++) add(this.objs[i], false);
+    for (i = 0; i < this.obs.length; i++) add(this.obs[i], true);
+    return out;
+  };
+  // QA hook: spawn a blocker by name in either mode (wall, shockring, tentacle / column, mine); x = number | 'ahead' | 'onPlayer'
+  P.qaSpawnBlocker = function (type, x, y, o) {
+    var p = this.player, SD = BAL.SIDE, vr = this.viewRight(), fwd = this.side ? this.fwdBase() : 0, gh = this.side ? this.gapFor() : 380, obj;
+    function xs(w, vx) { return x === 'onPlayer' ? p.x : (typeof x === 'number' ? x : vr + Math.max(100, 1.3 * (fwd + Math.abs(vx || 0))) + w / 2); }
+    if (y && typeof y === 'object' && o === undefined) { o = y; y = undefined; }
+    if (type === 'tentacle') type = 'column';
+    if (type === 'shockwall' || type === 'shock') type = 'shockring';
+    if (type === 'mine') { obj = { id: this.nextId++, kind: 'mine', x: x === 'onPlayer' ? p.x : (typeof x === 'number' ? x : vr + 300), y: y === undefined ? 520 : y, vy: SD.mineFall, life: 8, t: 0 }; this.objs.push(obj); return obj; }
+    if (this.side) {
+      if (type === 'wall') obj = { id: this.nextId++, kind: 'wall', x: xs(80, 60), vx: -60, gapY: y === undefined ? 640 : y, gapH: gh, w: 80 };
+      else if (type === 'shockring') { obj = { id: this.nextId++, kind: 'swall', x: xs(46, SD.boss.wallSpeed), vx: -SD.boss.wallSpeed, gapY: y === undefined ? 640 : y, gapH: gh, w: 46, t: 0 }; this.emit('ring', { x: obj.x, y: obj.gapY }); }
+      else if (type === 'column') obj = { id: this.nextId++, kind: 'column', x: xs(96, 0), vx: 0, gapY: y === undefined ? 640 : y, gapH: gh, w: 96, st: 'tele', t: 0, tele: SD.boss.tentWarnS, life: 1.4 };
+      else return null;
+      this.objs.push(obj); return obj;
+    }
+    if (type === 'wall') { obj = { id: this.nextId++, kind: 'struct', shape: 'r', x: xs(80, 0), y: y === undefined ? 700 : y, w: 80, h: 260, solid: true, vx: 0 }; this.obs.push(obj); return obj; }
+    if (type === 'shockring') { this.addRing(xs(0, 0), y === undefined ? 600 : y, 4); return this.objs[this.objs.length - 1]; }
+    if (type === 'column') { this.addTentacle(xs(0, 0)); return this.objs[this.objs.length - 1]; }
+    return null;
   };
 })(typeof window !== 'undefined' ? window : globalThis);

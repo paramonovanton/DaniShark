@@ -4,6 +4,7 @@
   'use strict';
   var OE = g.OE = g.OE || {};
 
+  var LINE = 'Go, Dani, go!!!';                                                     // the voice line of every evolution (spec UC-OE-113)
   var A = {
     ctx: null, master: null, sfxGain: null, musGain: null, sound: true, music: true, haptics: true, started: false, musicTimer: null, step: 0,
     init: function () {
@@ -79,7 +80,7 @@
        1. assets/audio/vo_go_dani.(mp3|m4a|ogg) when the manifest lists it (OE.assetManifest.vo_go_dani = { mp3, m4a, ogg }), played through an <audio> element;
        2. otherwise the Web Speech API (speechSynthesis): English voice, rate 1.15, pitch 1.3, one utterance at a time (the previous one is cancelled).
        Respects the Sound toggle, never throws (unsupported = silent), and is primed on the first tap (iOS Safari only speaks / plays after a gesture). Dev log only: voiceLog. */
-    voiceLog: [],
+    voiceLog: [],                                                                    // entries {text, at, source: 'file' | 'speech', file / voice}
     voiceFile: function () {
       var m = OE.assetManifest && OE.assetManifest.vo_go_dani, a;
       if (!m) return null;
@@ -115,7 +116,7 @@
           if (!this.voEl) { this.voEl = new g.Audio(f); }
           this.voEl.muted = false; this.voEl.volume = 1; this.voEl.currentTime = 0;
           var p = this.voEl.play(); if (p && p.catch) p.catch(function () { /* a refused play is not an error */ });
-          done = true; this.voiceLog.push('file ' + f);
+          done = true; this.voiceLog.push({ text: LINE, at: Date.now(), source: 'file', file: f });
         }
       } catch (e) { done = false; }
       if (!done) {
@@ -123,15 +124,15 @@
           var ss = g.speechSynthesis, U = g.SpeechSynthesisUtterance;
           if (ss && U && ss.speak) {
             if (ss.cancel) ss.cancel();
-            var u = new U('Go, Dani, go!'), v = this.enVoice();
+            var u = new U(LINE), v = this.enVoice();
             if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
             u.rate = 1.15; u.pitch = 1.3; u.volume = 1;
-            ss.speak(u); done = true; this.voiceLog.push('speech ' + (v ? v.name : 'default'));
+            ss.speak(u); done = true; this.voiceLog.push({ text: LINE, at: Date.now(), source: 'speech', voice: v ? v.name : 'default' });
           }
         } catch (e3) { done = false; }
       }
       if (this.voiceLog.length > 20) this.voiceLog.shift();
-      if (g.console && g.console.debug && /[?&]debug=1(&|$)/.test((g.location && g.location.search) || '')) g.console.debug('[voice] go_dani ' + (done ? this.voiceLog[this.voiceLog.length - 1] : 'unsupported'));
+      if (g.console && g.console.debug && /[?&]debug=1(&|$)/.test((g.location && g.location.search) || '')) g.console.debug('[voice] go_dani ' + (done ? JSON.stringify(this.voiceLog[this.voiceLog.length - 1]) : 'unsupported'));
       return done;
     },
     // soft pentatonic ambience

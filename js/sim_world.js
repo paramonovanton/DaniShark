@@ -275,7 +275,7 @@
         case 'sonar': o.r += 260 * dt; if (o.t > o.life) o.dead = true; break;
         case 'ink': if (o.t > o.life) o.dead = true; break;
         case 'tent':
-          if (o.st === 'tele') { o.ang = o.a0; if (o.t >= 0.9) { o.st = 'sweep'; o.t = 0; } }
+          if (o.st === 'tele') { o.ang = o.a0; if (o.t >= 1.0) { o.st = 'sweep'; o.t = 0; } }
           else if (o.st === 'sweep') { o.ang = o.a0 + (o.a1 - o.a0) * Math.min(1, o.t / 2.4); if (o.t >= 2.4) { o.st = 'retract'; o.t = 0; } }
           else if (o.st === 'retract') { o.len -= 900 * dt; if (o.len < 20 || o.t > 1) o.dead = true; }
           o.pts = this.tentPoints(o);
@@ -292,8 +292,8 @@
     // pickups bob
     for (i = 0; i < this.pickups.length; i++) this.pickups[i].t += dt;
   };
-  P.addRing = function (x, y, thick) {
-    this.objs.push({ id: this.nextId++, kind: 'ring', x: x, y: y, r: 40, v: 280, gap: Math.atan2(this.player.y - y, this.player.x - x) + this.rng.range(-0.5, 0.5), gapW: 1.25, thick: 46 });   // the gap opens towards the player's side (the water column is only 660 px high)
+  P.addRing = function (x, y, thick, speedMul) {
+    this.objs.push({ id: this.nextId++, kind: 'ring', x: x, y: y, r: 40, v: 280 * (speedMul || 1), gap: Math.atan2(this.player.y - y, this.player.x - x) + this.rng.range(-0.5, 0.5), gapW: 1.25, thick: 46 });   // the gap opens towards the player's side (the water column is only 660 px high)
     this.emit('ring', { x: x, y: y });
   };
   P.updateBoss = function (dt) {
@@ -301,11 +301,12 @@
     for (i = 0; i < this.creatures.length; i++) if (this.creatures[i].boss) boss = this.creatures[i];
     if (!boss) return;
     if (ph !== this.bossPhase) { this.bossPhase = ph; this.emit('bossPhase', { phase: ph }); this.bt = 0; this.tentT2 = 2; }
+    // CR-4 round 7 (UC-OE-120, same as the Side-scroller): phase 1 shock rings every 4 s; phase 2 tentacle columns, 3 at a time every 5 s; phase 3 both, the rings 20 % faster
     this.bt = (this.bt === undefined ? 2 : this.bt) - dt;
-    if (this.bt <= 0) { this.bt = ph === 1 ? 4 : (ph === 2 ? 5 : 6); this.addRing(boss.x - 60, boss.y - 120); }
-    if (ph === 3) {
+    if (ph !== 2 && this.bt <= 0) { this.bt = ph === 1 ? 4 : 4 / 1.2; this.addRing(boss.x - 60, boss.y - 120, undefined, ph === 3 ? 1.2 : 1); }
+    if (ph === 2 || ph === 3) {
       this.tentT2 = (this.tentT2 === undefined ? 1 : this.tentT2) - dt;
-      if (this.tentT2 <= 0) { this.tentT2 = 5; this.addTentacle(this.cam.x + 90, 1); this.addTentacle(this.cam.x + this.viewW - 90, 2); }
+      if (this.tentT2 <= 0) { this.tentT2 = 5; this.addTentacle(this.cam.x + this.viewW * 0.25, 1); this.addTentacle(this.cam.x + this.viewW * 0.5, 2); this.addTentacle(this.cam.x + this.viewW * 0.75, 1); }
     }
   };
 
@@ -383,7 +384,7 @@
         for (qq = 0; qq < this.creatures.length; qq++) { var tc = this.creatures[qq]; if (tc.dead || tc.faded || tc.def.k === 'pas' || tc.role === 'passive') continue;
           if (tc.persist && tc.role !== 'predator' && tc.role !== 'hazard' && Math.abs(tc.x - this.player.x) > this.viewW * 0.6) { tc.dead = true; continue; }          // a threat the player has outgrown and that is out of sight is retired (the next one is sized for the current form)
           liveN++; if (tc.role === 'predator') liveP++; if (tc.role === 'predator' || tc.role === 'hazard') liveT++; }
-        if ((liveT + 1) / (liveN + 1) <= BAL.GROWTH.CLASSIC_THREAT_BAND[1] - 0.07 && liveT < BAL.GROWTH.CLASSIC_THREAT_MAX) { this.spawnSpecial(liveP >= this.diff.maxpred && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true), 1); this.ev.threat++;       /* CR-4 v5.1: at most max-predators predators, then hazards */ }
+        if ((liveT + 1) / (liveN + 1) <= BAL.GROWTH.CLASSIC_THREAT_BAND[1] - 0.07 && liveT < BAL.GROWTH.CLASSIC_THREAT_MAX && !(this.bossBusy && this.bossBusy())) { this.spawnSpecial(liveP >= this.diff.maxpred && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true), 1); this.ev.threat++;       /* CR-4 v5.1: at most max-predators predators, then hazards */ }
         else if (liveT > 1 && liveT / liveN > BAL.GROWTH.CLASSIC_THREAT_BAND[1] - 0.03) {      // too many: recycle the farthest threat that is outside the view
           var far = null, fd = 0, px = this.player.x;
           for (qq = 0; qq < this.creatures.length; qq++) { var fc = this.creatures[qq]; if (!fc.dead && !fc.faded && (fc.role === 'predator' || fc.role === 'hazard') && fc.def.k !== 'pas' && Math.abs(fc.x - px) > this.viewW * 0.6 && Math.abs(fc.x - px) > fd) { far = fc; fd = Math.abs(fc.x - px); } }

@@ -28,13 +28,14 @@
   P.rosterSize = function (type, def) {
     var R = BAL.ROSTER_REL[this.world], rel = R && R.rel[type];
     if (rel === undefined) return def.size;
-    var size = rel * (def.k === 'pred' && this.diff ? this.diff.tier : 1) * this.S * this.rng.range(0.9, 1.1);          // CR-4 v5.1: predator tier factor 0.9 .. 1.4 (relative sizes, never below 1.15)
+    var size = rel * (def.k === 'pred' && this.diff ? this.diff.tier : 1) * this.S * (def.k === 'pred' ? 1 : this.rng.range(0.9, 1.1));          // CR-4 v5.1: predator tier factor 0.9 .. 1.4 (relative sizes, never below 1.15)
     return def.k === 'pred' ? Math.max(size, 1.16 * this.S) : size;      // a creature listed as a predator is always a predator when it spawns (the 0.9 factor must not turn a 1.15 roster entry into a peer)
   };
   P.sizeCreature = function (c) {
     if (c.boss) { var R = BAL.ROSTER_REL[this.world], rel = R && R.rel[c.type]; if (rel) c.size = rel * this.S; }      // the boss keeps its relative size (1.54) as the player grows
     c.len = this.visLen(c.size, c.def) * (c.inflated ? 1.6 : 1);
     c.br = c.len * clamp((c.def.asp || 0.4) * 0.5 + 0.04, 0.12, 0.3);
+    if (c.brCap && c.br > c.brCap) c.br = c.brCap;                                  // CR-4: a scripted boss body has a collider that always leaves the corridor of the gap rule (sim_boss.js capBr)
   };
   P.roleOf = function (c) {
     var def = c.def, S = this.S;
@@ -52,9 +53,12 @@
   };
   // QA: spawn(type, x, y, opts) where x may be 'onPlayer'
   P.qaSpawn = function (type, x, y, o) {
+    if (type === 'wall' || type === 'shockring' || type === 'shockwall' || type === 'shock' || type === 'tentacle' || type === 'column' || type === 'mine') return this.qaSpawnBlocker(type, x, y, o);
     if (this.side) return this.qaSpawnSide(type, x, y, o);
     var p = this.player;
     if (y && typeof y === 'object' && o === undefined) { o = y; y = undefined; }   // spawn(type, 'onPlayer', {opts})
+    if (x === 'ahead') { x = this.viewRight() + 240 + (CR[type] ? this.visLen(CR[type].size, CR[type]) * 0.5 : 0); if (y === undefined) y = this.rng.range(this.waterY + 120, BAL.seabedY - 120); }      // spawns come in 240 units beyond the visible right edge
+    else if (typeof x !== 'number' && x !== 'onPlayer') x = this.viewRight() + 240;
     if (type === 'coin') {
       return this.addPickup(x === 'onPlayer' ? p.x : x, x === 'onPlayer' ? p.y : y, this.world);
     }
