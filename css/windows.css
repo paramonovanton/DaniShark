@@ -1,0 +1,108 @@
+/* Ocean Evolution - window glue for the generated Figma layouts (ui/generated, adopted into index.html by tools/_adopt_ui.py).
+   The layouts bring every size, sprite and text style; this file only adds what the game needs: window visibility, pointer
+   events, press feedback, the carousel, procedural FX (glow burst, damage vignette) and a few small animations. */
+.win { position: absolute; inset: 0; display: none; pointer-events: none; }
+.win.on { display: block; }
+.win-full, .win-popup { pointer-events: auto; }
+.win-toast [data-layer="Toast"] { pointer-events: auto; cursor: pointer; }
+.game-canvas { display: block; pointer-events: none; }
+.dev-contents { display: contents; }
+.dev-layer, .dev-track { position: absolute; inset: 0; pointer-events: none; }
+
+/* HUD: only the pause button and the arena take input; the arena is live while a level plays */
+.stage .win-hud * { pointer-events: none; }
+.stage .win-hud button { pointer-events: auto; }
+.stage #w-hud.live #arena { pointer-events: auto; touch-action: none; }
+.stage .win-hint *, .stage .win-banner *, .stage .win-start * { pointer-events: none; }
+
+/* press / hover feedback (Figma Hover/Active states are a State FX overlay: approximated with filters) */
+.stage button { transition: transform .08s, filter .08s; }
+@media (hover: hover) { .stage button:not(:disabled):hover { filter: brightness(1.07); } }
+.stage button:not(:disabled):active { filter: brightness(.9); transform: translateY(4px) scale(.98); }
+.stage button:disabled { filter: grayscale(.85) brightness(.75); pointer-events: none; }
+
+/* world carousel: cards are absolute, js/ui.js sets transform translateX/scale per card */
+.stage .card { position: absolute; left: calc(50% - 300px); top: calc(50% - 360px); width: 600px; height: 720px; transform-origin: 50% 50%; cursor: pointer; pointer-events: auto; will-change: transform; }
+.stage .card.pulse > [data-layer="Frame"] { animation: cardglow .6s infinite alternate; }
+@keyframes cardglow { from { filter: drop-shadow(0 0 0 rgba(255, 240, 120, .9)); } to { filter: drop-shadow(0 0 28px rgba(255, 240, 120, 1)); } }
+.stage .card.shake { animation: shake .4s; }
+@keyframes shake { 0%, 100% { margin-left: 0; } 25% { margin-left: -16px; } 75% { margin-left: 16px; } }
+.stage [data-layer="World Carousel"] { pointer-events: auto; touch-action: none; z-index: 0; }   /* own stacking context: the cards' z-index stays below the arrows */
+
+/* settings control mode selector: the two hit areas are the tap targets */
+.stage [data-layer="Control Mode Selector"] [data-layer$="Hit Area"] { cursor: pointer; pointer-events: auto; }
+.stage [data-layer^="Level Chip #"] { cursor: pointer; pointer-events: auto; }
+
+/* procedural FX (kept in code per the pipeline: the Figma PNGs are stand-ins) */
+.fx-vignette { opacity: 0; box-shadow: inset 0 0 160px 40px rgba(255, 30, 30, .85); pointer-events: none; }
+.fx-vignette.flash { animation: vig .35s ease-out; }
+@keyframes vig { 0% { opacity: 1; } 100% { opacity: 0; } }
+.fx-glow { border-radius: 50%; pointer-events: none; opacity: .75;
+  background: repeating-conic-gradient(rgba(255, 244, 150, .55) 0 10deg, rgba(255, 244, 150, 0) 10deg 20deg); -webkit-mask: radial-gradient(circle, #000 0 18%, transparent 62%); mask: radial-gradient(circle, #000 0 18%, transparent 62%); animation: spin 8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* one line only: long names are cut with an ellipsis */
+.stage [data-layer="New Text"] > .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* hint plate: moves up out of the player's way (js/ui.js sets --hint-dy) */
+.stage .win-hint [data-layer="Hint Plate"], .stage .win-hint [data-layer="Hint Icon"], .stage .win-hint [data-layer="Hint Text"] { translate: 0 var(--hint-dy, 0px); }
+
+/* small animations */
+.stage [data-layer="Jump Indicator"] { transform: translate(-50%, -50%); }
+.stage [data-layer="Jump Indicator"][data-state="Ready"] { animation: ring .7s infinite alternate; }
+@keyframes ring { from { transform: translate(-50%, -50%) scale(.9); } to { transform: translate(-50%, -50%) scale(1.2); } }
+.stage [data-layer="Jump Indicator"][data-state="Cooldown"] { opacity: .5; }
+.stage [data-layer="Threat Marker"]:not([data-template]), .stage [data-layer="Ambush Warning"] { animation: tpulse .45s infinite alternate; }
+@keyframes tpulse { from { transform: scale(.9); } to { transform: scale(1.1); } }
+.stage .pop { animation: spop .3s ease-out both; }
+@keyframes spop { 0% { transform: scale(0); } 70% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.stage .hpop { animation: hpop .25s ease-out; }
+@keyframes hpop { 0% { transform: scale(1.5); } 100% { transform: scale(1); } }
+.stage .pulse { animation: pulse .15s ease-out; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.stage .float-text { animation: floatup .8s ease-out both; }
+@keyframes floatup { 0% { opacity: 0; margin-top: 0; } 15% { opacity: 1; } 100% { opacity: 0; margin-top: -50px; } }
+.stage [data-layer="Hint Icon"], .stage [data-layer="Hint Arrow"], .stage [data-layer="Prey Arrow"] { animation: bob 1s infinite ease-in-out; }
+@keyframes bob { 0%, 100% { margin-top: 0; } 50% { margin-top: -14px; } }
+.stage .win-banner [data-layer="Banner"] { animation: slidedown .25s ease-out; }
+@keyframes slidedown { from { transform: translateY(-140px); opacity: 0; } to { transform: none; opacity: 1; } }
+.stage .win-start [data-layer="Banner"] { animation: slidein .3s ease-out; }
+@keyframes slidein { from { transform: translateX(-400px); opacity: 0; } to { transform: none; opacity: 1; } }
+.stage .win-start.final [data-layer="Banner Plate"] { filter: hue-rotate(-150deg) saturate(1.3); }
+.stage .win-wc [data-layer="Lock Break"].broken { animation: lockbreak .6s ease-out both; }
+@keyframes lockbreak { 0% { transform: rotate(0); } 40% { transform: rotate(-25deg) scale(1.2); } 100% { transform: translateY(60px) rotate(40deg); opacity: 0; } }
+.stage .win-popup.on [data-layer="Window"] { animation: popin .2s ease-out; }
+@keyframes popin { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* rotate prompt (phone held upright): the stage is narrowed to 480+ logical px by js/app.js and fills the viewport */
+.win-rotate { z-index: 200; pointer-events: auto; }
+.win-rotate.on { display: block; animation: fadein .2s ease-out; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.stage .win-rotate [data-layer="Phone Icon"] { animation: wobble 1.6s ease-in-out infinite; }   /* the icon already shows the phone turned sideways + an arrow */
+@keyframes wobble { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+
+
+/* toast (Fullscreen refused / unavailable, js/ui.js toast()): short, readable, never blocks input */
+.stage .notice.info { background: rgba(11, 42, 71, .94); border: 3px solid rgba(255, 255, 255, .5); white-space: normal; width: max-content; max-width: min(1500px, 86%); line-height: 1.2; font-size: 34px; bottom: 90px; z-index: 300; }
+.stage .notice.info.on { animation: fadeout 5s forwards; }
+
+/* Fullscreen (CR-3 kit: CMP_Cmn_BtnFullscreen in the World Select top bar, Fullscreen Toggle in Pause): greyed while the browser has no Fullscreen API for this frame */
+.stage .unavail { opacity: .55; filter: grayscale(.8); }
+.stage [data-layer="Fullscreen Button"], .stage [data-layer="Fullscreen Toggle"] { cursor: pointer; pointer-events: auto; }
+
+/* Evolution Light banner and the goal banner never take input (the arena keeps playing under them) */
+.stage .win-full[data-state="Light"], .stage .win-full[data-state="Light"] * { pointer-events: none; }
+.stage .win-goal, .stage .win-goal * { pointer-events: none; }
+.stage .win-goal [data-layer="Banner"] { animation: slidedown .25s ease-out; }
+/* Bonus Timer Arc: js/ui.js sets --sweep (360deg = 60 s left) */
+.stage [data-layer="Bonus Timer"] [data-layer="Arc"].sweep { -webkit-mask-image: conic-gradient(from 0deg, #000 var(--sweep, 360deg), transparent 0); mask-image: conic-gradient(from 0deg, #000 var(--sweep, 360deg), transparent 0); }
+
+/* DEBUG unlock-all button (World Select, bottom left; BAL.DEBUG_UNLOCK): clearly a debug control, never part of the player UI */
+.stage .debug-unlock { position: absolute; left: 96px; bottom: 32px; z-index: 20; pointer-events: auto; border: 3px dashed #ff4d4d; border-radius: 22px; background: rgba(20, 0, 0, .72); color: #fff;
+  font: 800 30px/1 var(--font); padding: 14px 22px 14px 18px; display: flex; align-items: center; gap: 14px; cursor: pointer; }
+.stage .debug-unlock .tag { background: #e8222d; color: #fff; border-radius: 10px; padding: 4px 10px; font-size: 24px; letter-spacing: .08em; }
+.stage .debug-unlock[hidden] { display: none; }
+
+/* Evolution Light banner: the kit plate is exactly 120 px high with 60 + 60 px mask borders, a zero-height middle that Chrome renders as nothing: 2 px of middle are left (TA / Figma: give the plate a taller slice) */
+.stage [data-layer="Light Banner"] > [data-layer="Banner Plate"] { -webkit-mask-box-image: url('../ui/generated/sprites/Game/Panels/Banner/SPR_UI_Cmt_Game_StartBanner.png') 120 200 120 200 fill / 58px 100px 58px 100px stretch !important; mask-border: url('../ui/generated/sprites/Game/Panels/Banner/SPR_UI_Cmt_Game_StartBanner.png') 120 200 120 200 fill / 58px 100px 58px 100px stretch !important; }
+.stage [data-layer="Light Banner"] > [data-layer="Banner Plate"] > i { border-width: 58px 100px 58px 100px !important; }
