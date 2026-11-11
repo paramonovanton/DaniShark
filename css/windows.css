@@ -106,3 +106,10 @@
 /* Evolution Light banner: the kit plate is exactly 120 px high with 60 + 60 px mask borders, a zero-height middle that Chrome renders as nothing: 2 px of middle are left (TA / Figma: give the plate a taller slice) */
 .stage [data-layer="Light Banner"] > [data-layer="Banner Plate"] { -webkit-mask-box-image: url('../ui/generated/sprites/Game/Panels/Banner/SPR_UI_Cmt_Game_StartBanner.png') 120 200 120 200 fill / 58px 100px 58px 100px stretch !important; mask-border: url('../ui/generated/sprites/Game/Panels/Banner/SPR_UI_Cmt_Game_StartBanner.png') 120 200 120 200 fill / 58px 100px 58px 100px stretch !important; }
 .stage [data-layer="Light Banner"] > [data-layer="Banner Plate"] > i { border-width: 58px 100px 58px 100px !important; }
+
+/* BUG-U4 (iOS Safari tab memory): fewer / smaller compositing layers on the mobile tier and in lite mode */
+html.tier-mobile .stage .card, html.tier-lite .stage .card { will-change: auto; }                          /* 7 cards x 600x720 would each keep their own layer backing store */
+html.tier-mobile #stage, html.tier-lite #stage { box-shadow: none; }                                         /* a 60px blur around the whole stage */
+html.tier-mobile .fx-vignette:not(.flash), html.tier-lite .fx-vignette:not(.flash) { display: none; }         /* the full-screen damage vignette only exists while it flashes */
+html.tier-lite .stage .card.pulse > [data-layer="Frame"] { animation: none; }
+html.tier-mobile .stage button, html.tier-lite .stage button { transition: none; }

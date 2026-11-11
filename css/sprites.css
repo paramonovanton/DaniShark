@@ -74,7 +74,7 @@
 
 /* assets/ui art replaces the Figma stand-ins (same art; JPG backgrounds are 10x smaller) */
 :root {
-  --spr-SPR_UI_Img_Main_Loading_BG: url('assets/ui/bg_loading.jpg');
+  --spr-SPR_UI_Img_Main_Loading_BG: url('assets/ui/bg_main_menu.jpg');
   --spr-SPR_UI_Img_Main_Menu_BG: url('assets/ui/bg_main_menu.jpg');
   --spr-SPR_UI_Icn_Main_Phone: url('assets/ui/icn_phone_rotate.png');
   --spr-SPR_UI_Img_Main_WorldPreview_1: url('assets/ui/card_w1.png');
@@ -84,4 +84,43 @@
   --spr-SPR_UI_Img_Main_WorldPreview_5: url('assets/ui/card_w5.png');
   --spr-SPR_UI_Img_Main_WorldPreview_6: url('assets/ui/card_w6.png');
   --spr-SPR_UI_Img_Main_WorldPreview_7: url('assets/ui/card_w7.png');
+}
+
+/* BUG-U4: procedural FX (damage vignette, glow burst, waterline glow) are drawn by css / canvas: their PNG stand-ins are never requested */
+:root { --spr-SPR_UI_Img_Cmn_GlowBurst: none; --spr-SPR_UI_Cmt_Game_Vignette: none; --spr-SPR_UI_Cmt_Game_WaterlineGlow: none; }
+/* mobile tier: small pictures (menu + loading share one 960x540 JPG, world cards 300x360 JPG) */
+html.tier-mobile, html.tier-lite {
+  --spr-SPR_UI_Img_Main_Menu_BG: url('assets/ui/bg_menu_m.jpg');
+  --spr-SPR_UI_Img_Main_Loading_BG: url('assets/ui/bg_menu_m.jpg');
+  --spr-SPR_UI_Img_Main_WorldPreview_1: url('assets/ui/card_w1_m.jpg');
+  --spr-SPR_UI_Img_Main_WorldPreview_2: url('assets/ui/card_w2_m.jpg');
+  --spr-SPR_UI_Img_Main_WorldPreview_3: url('assets/ui/card_w3_m.jpg');
+  --spr-SPR_UI_Img_Main_WorldPreview_4: url('assets/ui/card_w4_m.jpg');
+  --spr-SPR_UI_Img_Main_WorldPreview_5: url('assets/ui/card_w5_m.jpg');
+  --spr-SPR_UI_Img_Main_WorldPreview_6: url('assets/ui/card_w6_m.jpg');
+  --spr-SPR_UI_Img_Main_WorldPreview_7: url('assets/ui/card_w7_m.jpg');
+}
+/* lite mode: no pictures, the stage shows its flat colour */
+html.tier-lite {
+  --spr-SPR_UI_Img_Main_Menu_BG: none;
+  --spr-SPR_UI_Img_Main_Loading_BG: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_1: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_2: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_3: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_4: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_5: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_6: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_7: none;
+}
+/* a window that is not shown holds none of the big pictures */
+.win:not(.on) {
+  --spr-SPR_UI_Img_Main_Menu_BG: none;
+  --spr-SPR_UI_Img_Main_Loading_BG: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_1: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_2: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_3: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_4: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_5: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_6: none;
+  --spr-SPR_UI_Img_Main_WorldPreview_7: none;
 }

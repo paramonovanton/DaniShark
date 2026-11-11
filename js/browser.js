@@ -153,5 +153,39 @@
       try { var o = g.screen && g.screen.orientation; if (o && o.unlock) o.unlock(); } catch (e) { /* ignore */ }
     }
   };
+  /* ---- device tier and crash-loop guard (BUG-U4) ----
+     desktop: full art.  mobile (touch / iOS / low deviceMemory): small backgrounds and cards, only the current world's art decoded, canvas dpr <= 1.5.
+     lite: procedural backgrounds, no hi-res art, dpr 1. Lite is entered by ?lite=1 / ?tier=lite, or by the guard: a mobile page that reloads 3 times within 20 s
+     (iOS Safari restarts a tab that ran out of memory) starts in lite mode and stays lite for the rest of the tab session (?lite=0 leaves it).
+     ?tier=desktop|mobile|lite forces a tier (tests, emulation); ?qa=1 never trips the guard. */
+  function detectTier(searchOverride) {
+    var s = searchOverride !== undefined ? searchOverride : ((g.location && g.location.search) || ''), nav = g.navigator || {}, ua = nav.userAgent || '', m = /[?&]tier=(desktop|mobile|lite)/.exec(s), tier, i;
+    var ios = /iPhone|iPad|iPod/.test(ua) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+    var coarse = false; try { coarse = !!(g.matchMedia && g.matchMedia('(pointer: coarse)').matches); } catch (e) { /* ignore */ }
+    tier = (ios || coarse || (nav.deviceMemory && nav.deviceMemory <= 4)) ? 'mobile' : 'desktop';
+    if (m) tier = m[1];
+    B.ios = !!ios; B.guardReloads = 0; B.guardTripped = false;
+    var guardOn = (tier !== 'desktop' && !/[?&]qa=1(&|$)/.test(s)) || /[?&]guard=1(&|$)/.test(s);
+    try {
+      var ss = g.sessionStorage, now = Date.now(), arr, kept = [];
+      if (/[?&]lite=0(&|$)/.test(s)) { ss.removeItem('oe_lite'); ss.removeItem('oe_loads'); }
+      if (guardOn) {
+        arr = JSON.parse(ss.getItem('oe_loads') || '[]');
+        for (i = 0; i < arr.length; i++) if (now - arr[i] < 20000) kept.push(arr[i]);
+        kept.push(now); ss.setItem('oe_loads', JSON.stringify(kept)); B.guardReloads = kept.length - 1;
+        if (kept.length >= 3 || ss.getItem('oe_lite') === '1') { if (kept.length >= 3) B.guardTripped = true; ss.setItem('oe_lite', '1'); tier = 'lite'; }
+        g.setTimeout(function () { try { ss.removeItem('oe_loads'); } catch (e) { /* ignore */ } }, 25000);   // it stayed up: not a crash loop
+      }
+    } catch (e0) { /* storage blocked: no guard */ }
+    if (/[?&]lite=1(&|$)/.test(s)) tier = 'lite';
+    B.tier = tier; B.lite = tier === 'lite';
+    try { g.document.documentElement.className += ' tier-' + tier; } catch (e1) { /* ignore */ }
+  }
+  B.tier = 'desktop'; B.lite = false; B.ios = false;
+  B.dprCap = function () { return this.lite ? 1 : (this.tier === 'mobile' ? 1.5 : 2); };
+  B.mobileTier = function () { return this.tier !== 'desktop'; };
+  B.detectTier = detectTier;
+  detectTier();
+
   OE.Browser = B;
 })(typeof window !== 'undefined' ? window : globalThis);

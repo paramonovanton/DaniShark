@@ -104,8 +104,10 @@
   // world card backgrounds: the focused world and its neighbours (the rest load when their level starts)
   P.preloadCards = function () {
     if (!this.assets) return;
-    var f = this.main.focus, ids = [], n;
-    for (n = Math.max(1, f - 1); n <= Math.min(7, f + 1); n++) ids.push('BG_W' + n + '_Back');
+    var f = this.main.focus, ids = [], n, mob = !!this.assets.tier && this.assets.tier() !== 'desktop';
+    for (n = mob ? f : Math.max(1, f - 1); n <= (mob ? f : Math.min(7, f + 1)); n++) ids.push('BG_W' + n + '_Back');     // mobile: only the focused world's background
+    if (this.assets.bootIds) ids = ids.concat(this.assets.bootIds(1));
+    if (this.assets.retain) this.assets.retain(ids);                                           // BUG-U4: the last level's creatures and backgrounds are released on the menu
     this.assets.preload(ids);
   };
   P.tapWorld = function (n) {
@@ -176,7 +178,7 @@
     this.sim = new OE.Sim({ world: world, level: level, viewW: this.viewW, controlMode: this.save.settings.controlMode, seed: this.seedValue === null ? (Date.now() & 0xffffff) : this.seedValue });
     this.run = { world: world, level: level, replay: replay, phase: opts.skipBanner ? 'play' : 'start', timer: BAL.levelStartS, result: null, pauseState: 'Default', winDelay: 0, evoT: 0, evo: null, hintDone: {}, lastPhaseBeforePause: 'play', goalT: 0, evoLightT: 0, evoLightTo: 0, bonus: false, bonusT: 0, endReason: null, goalFormAtEnd: 0 };
     this.acc = 0;
-    if (this.assets) this.assets.preload(this.assets.levelIds(world, 1));   // world sprites + current/next form; the banner waits for them (see update)
+    if (this.assets) { var lids = this.assets.levelIds(world, 1, level); if (this.assets.retain) this.assets.retain(lids); this.assets.preload(lids); }   // world sprites + current/next form; everything else is released (BUG-U4); the banner waits for them (see update)
     this.initHint();
     this.track('Level_Start', { lvl: this.lvlNumber(world, level), world: world, level_in_world: level, goal_form: this.sim.goalForm, replay: replay, control_mode: this.sim.controlMode });
     this.changed();
@@ -390,7 +392,7 @@
       case 'evolve':
         // CR-3 (R-OE-39): +1 heart and 1.5 s invulnerability were applied by the sim. The FIRST evolution ever = blocking popup (arena frozen);
         // every other = the non-blocking Light banner; the evolution that reaches the goal form shows the goal banner instead (TR-OE-60)
-        if (this.assets) this.assets.preload(this.assets.formIds(e.to).concat(e.to < 8 ? this.assets.formIds(e.to + 1) : []));
+        if (this.assets) { var eids = this.assets.levelIds(r.world, e.to, r.level); if (this.assets.retain) this.assets.retain(eids); this.assets.preload(eids); }     // the forms below the new one are released
         var reachesGoal = e.from < s.goalForm && e.to >= s.goalForm, light = !(sv.tutorial.evoIntroSeen === false && !reachesGoal);
         this.track('Evolved', { form_from: e.from, form_to: e.to, world: r.world, level_in_world: r.level, level_time_s: Math.round(s.t), light: light });
         if (!light) { r.phase = 'evolution'; r.evoT = BAL.evoAutoS; r.evo = { from: e.from, to: e.to }; s.halted = true; sv.tutorial.evoIntroSeen = true; this.commit(); }

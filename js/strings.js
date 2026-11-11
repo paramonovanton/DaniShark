@@ -58,6 +58,7 @@
     // browser play (BUG-U2): fullscreen button and toasts
     oe_fs_label: 'Fullscreen',
     oe_fs_enter: 'Fullscreen', oe_fs_exit: 'Exit fullscreen',
+    oe_lite_note: 'Low-memory mode: simplified graphics so the game keeps running',
     oe_fs_unavailable: "Fullscreen is not available here — open the game in its own browser tab",
     oe_fs_ios: "Fullscreen is not available here — on iPhone use Share > Add to Home Screen to play fullscreen",
     // debug (BAL.DEBUG_UNLOCK): not player-facing

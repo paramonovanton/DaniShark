@@ -42,7 +42,7 @@
     if (stageW < BAL.HUD_NARROW_W) stage.setAttribute('data-narrow', ''); else stage.removeAttribute('data-narrow');
     document.documentElement.setAttribute('data-insets', [m.t, m.r, m.b, m.l].map(Math.round).join(','));
     ui.fitGen = (ui.fitGen || 0) + 1;                                   // labels are re-fitted after a layout change (Wide / Narrow copies switch)
-    render.resize(viewW * S, Math.min(g.devicePixelRatio || 1, 2), viewW);
+    render.resize(viewW * S, Math.min(g.devicePixelRatio || 1, Br.dprCap()), viewW);      // BUG-U4: mobile tier <= 1.5, lite 1
     game.setView(viewW);
     game.setPortrait(tall && Br.touchPhone(m.vw, m.vh));
     OE.fitInfo = { vw: m.vw, vh: m.vh, insets: [m.t, m.r, m.b, m.l], area: [m.aw, m.ah], scale: S, stageW: stageW, left: m.l + left, top: m.t + top };
@@ -77,6 +77,8 @@
   /* ---- assets, then the loop ---- */
   game.setLoadProgress(0);
   OE.Assets.init();
+  // BUG-U4: the crash-loop guard sent this tab into lite mode (the page kept reloading): a small note says so
+  if (Br.guardTripped) setTimeout(function () { ui.toast(OE.t('oe_lite_note')); }, 2500);
   OE.Assets.preload(OE.Assets.bootIds(1), function (p) { game.setLoadProgress(p); });
   game.on('change', function () { /* ui picks it up in sync() */ });
 

@@ -93,6 +93,11 @@
     Array.prototype.forEach.call(document.querySelectorAll('template[data-component]'), function (t) { self.tpl[t.getAttribute('data-component') + '|' + t.getAttribute('data-variant')] = t; });
     var pe = this.tpl['CMP_Cmn_Pip|State=Empty'], pf = this.tpl['CMP_Cmn_Pip|State=Filled'];
     this.pipStyle = { Empty: pe.content.firstElementChild.getAttribute('style'), Filled: pf.content.firstElementChild.getAttribute('style') };
+    // BUG-U4: the form / creature art canvases (704x440, 320x200, 256x160 backing stores) are drawn at half the pixels on the mobile tier (they show at a third of that size on a phone)
+    if (OE.Browser && OE.Browser.mobileTier && OE.Browser.mobileTier()) {
+      var halve = function (root) { Array.prototype.forEach.call(root.querySelectorAll('canvas'), function (c) { if (c.id !== 'arena-canvas' && !c.getAttribute('data-half') && c.width > 64) { c.width = Math.round(c.width / 2); c.height = Math.round(c.height / 2); c.setAttribute('data-half', '1'); } }); };
+      halve(document); Array.prototype.forEach.call(document.querySelectorAll('template'), function (t) { halve(t.content); });
+    }
     loc(document);
     this.arena = document.getElementById('arena');
     this.notice = document.getElementById('notice');
