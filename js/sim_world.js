@@ -20,8 +20,10 @@
     n = 0;
     while (this.foodCost() < this.foodTarget() - 0.01 && n++ < 80) this.spawnFood(true, n === 1 ? ld.food[0][0] : null);   // first entry first: a swarm in W1
     var pr = ld.pred || [], hz = ld.haz || [];
-    for (i = 0; i < pr.length; i++) this.spawnSpecial(pr[i][0], pr[i][1]);
-    for (i = 0; i < hz.length; i++) this.spawnSpecial(hz[i][0], hz[i][1]);
+    // CR-4 round 8: the start population follows the difficulty table in Classic too (at most max-predators predators, one of each hazard up to the hazard types)
+    var np0 = 0, nh0 = 0;
+    for (i = 0; i < pr.length && !(this.bossIsScripted && this.bossIsScripted()); i++) { if (np0 >= this.diff.maxpred) break; this.spawnSpecial(pr[i][0], Math.min(pr[i][1], this.diff.maxpred - np0)); np0 += Math.min(pr[i][1], this.diff.maxpred - np0); }
+    for (i = 0; i < hz.length && nh0 < this.diff.haztypes; i++) { this.spawnSpecial(hz[i][0], 1); nh0++; }
     var pas = ld.pas || [];
     for (i = 0; i < pas.length; i++) this.pasT[i] = pas[i][1];
     var per = ld.per || [];
@@ -108,6 +110,16 @@
     return { x: this.randomFar(600, [FLOOR - 120, FLOOR - 40])[0], y: this.rng.range(FLOOR - 120, FLOOR - 40) };
   };
   // persistent predators / hazards of a level: at least spawnFar (930 px) from the player
+  // Classic: retire the farthest living threat of a role that is outside the view (true when one was retired)
+  P.retireFar = function (role) {
+    var far = null, fd = 0, px = this.player.x, i, c, d;
+    for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; d = Math.abs(c.x - px); if (!c.dead && !c.bossAtk && c.role === role && c.def.k !== 'pas' && d > this.viewW * 0.5 + c.len * 0.5 + 20 && d > fd) { far = c; fd = d; } }          // fully outside the visible width
+    if (far) { far.persist = false; far.dead = true; return true; }
+    // none outside the view: the one that has been around longest swims off in a straight line (it still counts as a threat while it is on screen, not for the stream)
+    for (i = 0, fd = -1; i < this.creatures.length; i++) { c = this.creatures[i]; if (!c.dead && !c.bossAtk && !c.leaving && c.role === role && c.def.k !== 'pas' && c.t > fd) { far = c; fd = c.t; } }
+    if (far) { far.leaving = true; far.persist = false; far.cross = true; far.cdir = far.x >= px ? 1 : -1; far.scr = { vx: far.cdir * 300, vy: 0 }; far.vx = far.scr.vx; }
+    return false;
+  };
   P.spawnSpecial = function (id, count, boost) {
     var def = CR[id], sz = boost ? Math.max(this.rosterSize(id, CR[id]), boost * this.S) : undefined, i, pos, yr = [this.bands.mid[0], this.bands.deep[1]], gr = null, self = this;
     for (i = 0; i < count; i++) {
@@ -145,7 +157,7 @@
       case 'crevice': this.obs.push({ id: this.nextId++, kind: 'crevice', shape: 'c', x: clamp(bx - 70, 80, W - 80), y: FLOOR - rng.range(30, 160), r: 30 }); break;
       case 'brock': this.obs.push({ id: this.nextId++, kind: 'brock', shape: 'c', x: clamp(bx + 50, 90, W - 90), y: FLOOR - rng.range(60, 140), r: 48, solid: true, breakable: 24, coins: rng.int(3, 5) }); break;
       case 'ruin': h = rng.range(180, 360); this.obs.push({ id: this.nextId++, kind: 'ruin', shape: 'r', x: bx, y: FLOOR - h / 2, w: 80, h: h, solid: true, breakable: 29, coins: 3 }); break;
-      case 'struct': h = rng.range(200, 340); this.obs.push({ id: this.nextId++, kind: 'struct', shape: 'r', x: bx, y: rng.range(this.waterY + 120 + h / 2, FLOOR - h / 2 - 20), w: rng.range(60, 90), h: h, solid: true, vx: (rng.chance(0.5) ? 1 : -1) * 55 }); break;
+      case 'struct': h = rng.range(200, 340); this.obs.push({ id: this.nextId++, kind: 'struct', shape: 'r', x: Math.max(bx, BAL.playerStart.x + this.viewW * 0.5 + 560), y: rng.range(this.waterY + 120 + h / 2, FLOOR - h / 2 - 20), w: rng.range(60, 90), h: h, solid: true, vx: (rng.chance(0.5) ? 1 : -1) * 55 }); break;
       case 'seaweed': this.zones.push({ id: this.nextId++, kind: 'seaweed', x: bx, y: FLOOR - 150, w: 170, h: 300, mul: 0.6 }); break;
       case 'kelp': this.zones.push({ id: this.nextId++, kind: 'kelp', x: clamp(bx + 60, 100, W - 100), y: FLOOR - 190, w: 210, h: 380, mul: 0.4, stealth: true }); break;
       case 'current': this.zones.push({ id: this.nextId++, kind: 'current', x: bx, y: rng.range(this.waterY + 140, FLOOR - 160), w: 420, h: 200, vx: (i % 2 ? -1 : 1) * 120, vy: 0 }); break;
@@ -255,6 +267,7 @@
       if (tc < 3 && this.tentT <= 0) { this.addTentacle(this.cam.x + this.rng.range(120, this.viewW - 120)); this.tentT = 1.2; }
     }
     if (this.ldef.boss === 'bloop') this.updateBoss(dt);
+    this.updateWallObjs(dt);
     // objects
     for (i = 0; i < this.objs.length; i++) {
       o = this.objs[i]; o.t = (o.t || 0) + dt;
@@ -303,10 +316,10 @@
     if (ph !== this.bossPhase) { this.bossPhase = ph; this.emit('bossPhase', { phase: ph }); this.bt = 0; this.tentT2 = 2; }
     // CR-4 round 7 (UC-OE-120, same as the Side-scroller): phase 1 shock rings every 4 s; phase 2 tentacle columns, 3 at a time every 5 s; phase 3 both, the rings 20 % faster
     this.bt = (this.bt === undefined ? 2 : this.bt) - dt;
-    if (ph !== 2 && this.bt <= 0) { this.bt = ph === 1 ? 4 : 4 / 1.2; this.addRing(boss.x - 60, boss.y - 120, undefined, ph === 3 ? 1.2 : 1); }
+    if (ph !== 2 && this.bt <= 0) { this.bt = ph === 1 ? 4 : 5 / 1.2; this.bossShockWall(ph === 3 ? 1.2 : 1); }
     if (ph === 2 || ph === 3) {
       this.tentT2 = (this.tentT2 === undefined ? 1 : this.tentT2) - dt;
-      if (this.tentT2 <= 0) { this.tentT2 = 5; this.addTentacle(this.cam.x + this.viewW * 0.25, 1); this.addTentacle(this.cam.x + this.viewW * 0.5, 2); this.addTentacle(this.cam.x + this.viewW * 0.75, 1); }
+      if (this.tentT2 <= 0) { this.tentT2 = ph === 3 ? 5 / 1.2 : 5; this.bossColumns(3); }
     }
   };
 
@@ -317,6 +330,7 @@
     if (p.airborne) return;
     this.collideCreatures();
     this.collideObjs(dt);
+    this.collideWallObjs();
   };
   P.collectPickups = function () {
     var p = this.player, i, pk, m = this.mouth();
@@ -345,7 +359,7 @@
     for (i = 0; i < this.objs.length; i++) {
       o = this.objs[i];
       switch (o.kind) {
-        case 'mine': if (dist(p.x, p.y, o.x, o.y) < p.r + 32) { if (this.damage({ name: 'Sea mine', kind: 'hazard', id: 'mine' }, o.x, o.y)) { o.dead = true; this.emit('break', { x: o.x, y: o.y, kind: 'mine', r: 60 }); } } break;
+        case 'mine': if ((o.t || 0) >= (o.arm || 0) && dist(p.x, p.y, o.x, o.y) < p.r + 32) { if (this.damage({ name: 'Sea mine', kind: 'hazard', id: 'mine' }, o.x, o.y)) { o.dead = true; this.emit('break', { x: o.x, y: o.y, kind: 'mine', r: 60 }); } } break;
         case 'frock': if (o.st === 'fall' && dist(p.x, p.y, o.x, o.y) < p.r + o.r) this.damage({ name: 'Falling rock', kind: 'hazard', id: 'fallingrock' }, o.x, o.y); break;
         case 'crock': if (o.st === 'fall' && dist(p.x, p.y, o.x, o.y) < p.r + o.r) this.damage({ name: 'Collapsing rock', kind: 'hazard', id: 'collapsingrock' }, o.x, o.y); break;
         case 'ring':
@@ -377,6 +391,23 @@
       if (this.peerT <= 0) { this.peerT = I * W.prey / W.peer; this.ev.peer++; var livePeers = 0; for (qq = 0; qq < this.creatures.length; qq++) if (this.creatures[qq].peerSlot && !this.creatures[qq].dead) livePeers++; if (this.foodCost() < this.foodTarget() - 0.01 && livePeers < Math.max(3, Math.round(this.foodTarget() * 0.35))) this.spawnFood(false, this.peerPick()); }   // peers are never eaten: at most about a third of the prey budget alive
       // spec v4.2 (R-OE-42, Classic): the mix is a LIVE composition - threats are about 25..40 % of the live non-surface creatures. Every 0.5 s: below the band a threat
       // (sized for the CURRENT form) is spawned, above it the farthest threat outside the view is recycled; prey / peers keep their own streams
+      // CR-4 round 8 (R-OE-50 in Classic): predator and hazard STREAMS on the difficulty table (interval, max predators alive, hazard types) like the Side-scroller; boss waves have priority (no
+      // normal spawn while one is queued / telegraphed / active); the live share is only a sanity band: below 20 % a threat is topped up, above 55 % the farthest one outside the view is recycled
+      var D = this.diff, busy = !!(this.bossBusy && this.bossBusy()), scripted = this.bossIsScripted && this.bossIsScripted(), np = 0, nh = 0, hz = {}, tcnt, tc2;
+      for (qq = 0; qq < this.creatures.length; qq++) { tc2 = this.creatures[qq]; if (tc2.dead || tc2.faded || tc2.def.k === 'pas' || tc2.bossAtk) continue; if (tc2.leaving) continue; if (tc2.role === 'predator') np++; else if (tc2.role === 'hazard') { nh++; hz[tc2.type] = 1; } }
+      for (qq = 0; qq < this.respawn.length; qq++) { if (CR[this.respawn[qq].type].k === 'pred') np++; }                           // a predator waiting to come back counts
+      tcnt = Object.keys(hz).length;
+      if ((ld.pred || []).length && !scripted) {
+        this.predT = (this.predT === undefined ? D.pred * 0.5 : this.predT) - dt;
+        if (this.predT <= 0) { if (busy) this.predT = 0.4; else if (np >= D.maxpred && !this.retireFar('predator')) this.predT = 1; else { this.spawnSpecial(this.rng.wpick(ld.pred), 1); this.ev.threat++; this.predT = D.pred; } }      // at the cap the farthest predator outside the view is retired for the new one
+      }
+      if ((ld.haz || []).length) {
+        this.hazT = (this.hazT === undefined ? D.haz * 0.6 : this.hazT) - dt;
+        if (this.hazT <= 0) {
+          var hid = this.rng.wpick(ld.haz);
+          if (busy) this.hazT = 0.4; else if ((tcnt >= D.haztypes && !hz[hid]) || (nh >= Math.min(BAL.GROWTH.CLASSIC_THREAT_MAX, D.haztypes * 2) && !this.retireFar('hazard'))) this.hazT = 1; else { this.spawnSpecial(hid, 1); this.ev.threat++; this.hazT = D.haz; }
+        }
+      }
       this.thrT2 = (this.thrT2 === undefined ? 1 : this.thrT2) - dt;
       if (this.thrT2 <= 0 && !this.dying) {
         this.thrT2 = 0.5;
@@ -384,8 +415,8 @@
         for (qq = 0; qq < this.creatures.length; qq++) { var tc = this.creatures[qq]; if (tc.dead || tc.faded || tc.def.k === 'pas' || tc.role === 'passive') continue;
           if (tc.persist && tc.role !== 'predator' && tc.role !== 'hazard' && Math.abs(tc.x - this.player.x) > this.viewW * 0.6) { tc.dead = true; continue; }          // a threat the player has outgrown and that is out of sight is retired (the next one is sized for the current form)
           liveN++; if (tc.role === 'predator') liveP++; if (tc.role === 'predator' || tc.role === 'hazard') liveT++; }
-        if ((liveT + 1) / (liveN + 1) <= BAL.GROWTH.CLASSIC_THREAT_BAND[1] - 0.07 && liveT < BAL.GROWTH.CLASSIC_THREAT_MAX && !(this.bossBusy && this.bossBusy())) { this.spawnSpecial(liveP >= this.diff.maxpred && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true), 1); this.ev.threat++;       /* CR-4 v5.1: at most max-predators predators, then hazards */ }
-        else if (liveT > 1 && liveT / liveN > BAL.GROWTH.CLASSIC_THREAT_BAND[1] - 0.03) {      // too many: recycle the farthest threat that is outside the view
+        if (!busy && liveT / Math.max(1, liveN) < BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[0] && liveT < BAL.GROWTH.CLASSIC_THREAT_MAX) { this.spawnSpecial(liveP >= D.maxpred && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true), 1); this.ev.threat++; }
+        else if (liveT > 1 && liveT / liveN > BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[1]) {      // too many: recycle the farthest threat that is outside the view
           var far = null, fd = 0, px = this.player.x;
           for (qq = 0; qq < this.creatures.length; qq++) { var fc = this.creatures[qq]; if (!fc.dead && !fc.faded && (fc.role === 'predator' || fc.role === 'hazard') && fc.def.k !== 'pas' && Math.abs(fc.x - px) > this.viewW * 0.6 && Math.abs(fc.x - px) > fd) { far = fc; fd = Math.abs(fc.x - px); } }
           if (far) far.dead = true;
@@ -399,14 +430,16 @@
       var lst = (ld.pred || []).concat(ld.haz || []), th = 0, q;
       if (lst.length && !this.dying) {
         for (q = 0; q < this.creatures.length; q++) { var cc = this.creatures[q]; if (!cc.dead && !cc.faded && (cc.role === 'predator' || cc.role === 'hazard') && cc.def.k !== 'pas') th++; }
-        if (th === 0 && this.respawn.length === 0) this.spawnSpecial(this.pickThreat(), 1);
+        if (th === 0 && this.respawn.length === 0 && !(this.bossBusy && this.bossBusy())) this.spawnSpecial(this.pickThreat(), 1);
       }
     }
     // persistent predators/hazards removed by distance come back outside the view, far from the player
     for (i = this.respawn.length - 1; i >= 0; i--) {
       var rs = this.respawn[i];
       if (this.t < rs.t) continue;
+      if (this.bossBusy && this.bossBusy()) { rs.t = this.t + 0.5; continue; }                // boss priority: nothing normal comes back while a wave is queued / telegraphed / active
       var rdef = CR[rs.type], rx, ry, rc;
+      if (rdef.k === 'pred') { var lp = 0, qz; for (qz = 0; qz < this.creatures.length; qz++) if (!this.creatures[qz].dead && this.creatures[qz].role === 'predator' && !this.creatures[qz].bossAtk) lp++; if (lp >= this.diff.maxpred) { this.respawn.splice(i, 1); continue; } }      // never more predators alive than the difficulty table allows
       if (rdef.ai === 'ambush' || rdef.ai === 'rush') { var hs = this.homeSpot(); rx = hs.x; ry = hs.y; }
       else { rx = this.edgeSpawn(BAL.spawnFar); ry = this.bandPick(rdef); if (rdef.ai === 'sub') ry = this.waterY + 260; }
       if (rx === null) { rs.t = this.t + 2; continue; }

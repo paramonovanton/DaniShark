@@ -273,7 +273,7 @@
     if (def.ai === 'school' && this.creatures.some(function (q) { return q.type === id && !q.dead && q.x > this.viewRight() - 300; }, this)) {
       id = this.foodPick(); def = CR[id];
     }
-    if (x !== undefined && (def.sband === 'floor' || (SM[id] && SM[id].p === 'FLOOR'))) x = Math.max(x, this.viewRight() + SD.spawnAhead);          // UC-OE-110: floor creatures also come in >= 240 units beyond the view edge (also at the level start)
+    if (x !== undefined && (def.sband === 'floor' || (SM[id] && (SM[id].p === 'FLOOR' || SM[id].p === 'LINE' || SM[id].p === 'GROUP')))) x = Math.max(x, this.viewRight() + SD.spawnAhead);          // UC-OE-110: floor creatures also come in >= 240 units beyond the view edge (also at the level start)
     var n0 = this.creatures.length, c = this.spawnSide(id, { x: x, size: forceSize }), fresh, self = this;
     if (!c) return c;
     fresh = this.creatures.slice(n0);
@@ -367,7 +367,7 @@
       if (c.sc >= 5) {
         c.sc = 0; c.sonar = false; c.state = ''; c.warn = 0;
         this.objs.push({ kind: 'sonar', x: c.x, y: c.y, r: 20, t: 0, life: 1.4 }); this.emit('sonar', { x: c.x, y: c.y });
-        for (i = -1; i <= 1; i += 2) this.objs.push({ kind: 'mine', x: c.x + i * 40, y: c.y + c.len * 0.2, vy: SD.mineFall, life: 8, t: 0 });
+        for (i = -1; i <= 1; i += 2) this.objs.push({ id: this.nextId++, kind: 'mine', x: c.x + i * 40, y: c.y + c.len * 0.2, vy: SD.mineFall, life: 8, t: 0, arm: 1.0 });
       }
     }
     if (SM[c.type] && SM[c.type].strike && c.role === 'predator') {                 // neck strike: a straight vertical thrust, telegraph 0.6 s
@@ -446,7 +446,7 @@
      (bodies swept along their linear path, walls with their gaps) and <= 2 threats per 300 px window (a batch / pod / school counts once).
      At spawn the field is projected over the whole crossing (state of every threat at each sample time, bounce / turn / clamp included, then QA's
      1.5 s linear extrapolation); a spawn that would break a rule is removed again and retried (re-lane / delay). */
-  var BOTTOM = 990, CORR_MARGIN = 20, DT = 0.05;
+  var BOTTOM = 990, CORR_MARGIN = 50, DT = 0.05;
   function isPuff(c) { return !!(c.def.sp && c.def.sp.puff); }
   function bodyBr(c) { return isPuff(c) && !c.inflated ? c.br * 1.6 : c.br; }
   function bodyLen(c) { return isPuff(c) && !c.inflated ? c.len * 1.6 : c.len; }

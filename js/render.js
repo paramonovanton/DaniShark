@@ -406,7 +406,7 @@
       o = sim.objs[i];
       switch (o.kind) {
         case 'mine':
-          var mimg = this.sp('OBS_Mine');
+          var mimg = this.sp('OBS_Mine'); if (o.arm && o.t < o.arm) { ctx.save(); ctx.globalAlpha = 0.45 + 0.3 * Math.sin(t * 20); ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(o.x, o.y, 54, 0, TAU); ctx.stroke(); ctx.restore(); }      // arming: a red flash for o.arm s before it can hurt
           if (mimg) { this.spr(ctx, mimg, o.x, o.y, 72, 'c'); ctx.beginPath(); ctx.arc(o.x, o.y, 6, 0, TAU); ctx.fillStyle = (Math.floor(t * 3) % 2 ? '#ff4040' : '#701010'); ctx.fill(); break; }
           ctx.save(); ctx.translate(o.x, o.y); ctx.strokeStyle = '#333'; ctx.lineWidth = 5; for (k = 0; k < 8; k++) { var a = k / 8 * TAU; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 26, Math.sin(a) * 26); ctx.lineTo(Math.cos(a) * 40, Math.sin(a) * 40); ctx.stroke(); }
           ctx.beginPath(); ctx.arc(0, 0, 28, 0, TAU); ctx.fillStyle = '#5a5f66'; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = OUT; ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fillStyle = (Math.floor(t * 3) % 2 ? '#ff4040' : '#701010'); ctx.fill(); ctx.restore(); break;

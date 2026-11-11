@@ -537,7 +537,7 @@
       for (i = 0; i < s.creatures.length; i++) { c = s.creatures[i]; if (c.role !== 'prey' || c.hidden || c.x < p.x) continue; var d = U.dist(c.x, c.y, p.x, p.y); if (d < bd) { bd = d; best = c; } }
       show(prey, !!best);
       if (best && prey) { prey.style.left = (s.scrX(best.x - best.len * 0.5) - prey.offsetWidth - 20) + 'px'; prey.style.top = (s.scrY(best.y) - prey.offsetHeight / 2) + 'px'; }
-      var thr = s.side ? s.threatMarkers() : [], red = null;
+      var thr = s.threatMarkers(), red = null;
       for (i = 0; i < thr.length; i++) if (thr[i].kind === 'red') { red = thr[i]; break; }
       if (danger) { show(danger, !!red); if (red) { danger.style.left = (s.viewW * BAL.ZOOM - 96 - danger.offsetWidth) + 'px'; danger.style.top = (Math.max(190, Math.min(1000, s.scrY(red.y))) - danger.offsetHeight / 2) + 'px'; } }
     }
@@ -545,7 +545,7 @@
   // Side-scroller: Threat Markers at the right edge (lane height) for incoming predators, ambushers, hazards (red = Kind=Threat) and surface
   // targets (yellow = Kind=Surface); a Threat Marker "!" over a creature that is about to dash / strike / ping
   P.syncThreats = function (s) {
-    var box = this.threatBox, list = s.side ? s.threatMarkers() : [], i, tm = this.tmplThreat, self = this;
+    var box = this.threatBox, list = s.threatMarkers(), i, tm = this.tmplThreat, self = this;
     function clampY(y) { return Math.max(190, Math.min(1000, y)); }
     function mk(layer) { var el = tm.cloneNode(true); el.removeAttribute('data-template'); el.setAttribute('data-layer', layer); el.hidden = true; el.style.right = 'auto'; box.appendChild(el); return el; }
     this.threatEls = this.threatEls || [];
