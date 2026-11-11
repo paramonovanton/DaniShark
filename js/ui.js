@@ -87,7 +87,7 @@
   };
 
   P.build = function () {
-    var self = this, game = this.game, W = this.W, ids = ['loading', 'select', 'locked', 'pick', 'settings', 'hud', 'hint', 'event', 'start', 'pause', 'evo', 'goal', 'complete', 'fail', 'world', 'rotate'], i;
+    var self = this, game = this.game, W = this.W, ids = ['loading', 'select', 'locked', 'pick', 'settings', 'hud', 'hint', 'event', 'start', 'pause', 'evo', 'complete', 'fail', 'world', 'rotate'], i;
     ids.forEach(function (k) { W[k] = document.getElementById('w-' + k); });
     this.tpl = {};
     Array.prototype.forEach.call(document.querySelectorAll('template[data-component]'), function (t) { self.tpl[t.getAttribute('data-component') + '|' + t.getAttribute('data-variant')] = t; });
@@ -167,12 +167,11 @@
       hearts: all(hud, 'HUD Top/Hearts'), lvlLabel: all(hud, 'HUD Top/Level Label/Label'), lvlPips: all(hud, 'HUD Top/Level Label/Pips'),
       portrait: all(hud, 'HUD Top/Creature Chip/Form Portrait'), formName: all(hud, 'HUD Top/Creature Chip/Form Name'), size: all(hud, 'HUD Top/Creature Chip/Size'),
       coin: all(hud, 'HUD Top/Coin Counter'), coinVal: all(hud, 'HUD Top/Coin Counter/Value'), coinIcon: all(hud, 'HUD Top/Coin Counter/Coin Icon'),
-      track: all(hud, 'HUD Top/Form Track'), finish: all(hud, 'Finish Button'), bonus: all(hud, 'Bonus Timer'),
+      track: all(hud, 'HUD Top/Form Track'),
       fill: all(hud, 'HUD Top/Growth Bar/Fill Clip'), tick: all(hud, 'HUD Top/Growth Bar/Evolution Tick'), gbVal: all(hud, 'HUD Top/Growth Bar/Value')
     };
     this.fillL = this.H.fill.map(function (el) { return parseFloat(el.style.left) || 0; });
-    this.H.finish.forEach(function (b) { b.addEventListener('click', function () { self.click(); game.finishBonus(); }); });
-    this.vig = one(hud, 'Damage Vignette'); this.jumpInd = one(hud, 'Jump Indicator'); this.boss = one(hud, 'Boss Phase Pips');
+    this.vig = one(hud, 'Damage Vignette'); this.jumpInd = one(hud, 'Jump Indicator'); this.boss = one(hud, 'Boss Phase Pips'); this.bossName = one(hud, 'Boss Name'); this.bossArrow = one(hud, 'Boss Arrow'); this.bossHi = one(hud, 'Boss Highlight'); this.bossEat = one(hud, 'Boss Eat Text');
     this.tmplThreat = one(hud, 'Threat Markers/Threat Marker'); this.tmplBig = one(hud, 'Too Big Marker'); this.tmplFloat = one(hud, 'Float Text');
     this.threatBox = one(hud, 'Threat Markers');
 
@@ -318,8 +317,7 @@
     setOn(W.hint, inGame && phase === 'play' && !!game.hint);
     setOn(W.event, inGame && phase === 'play' && !!game.banner);
     setOn(W.pause, inGame && phase === 'pause');
-    setOn(W.evo, inGame && (phase === 'evolution' || (phase === 'play' && r.evoLightT > 0)));
-    setOn(W.goal, inGame && phase === 'play' && r.goalT > 0);
+    setOn(W.evo, inGame && (phase === 'evolution' || (phase === 'play' && (r.evoLightT > 0 || r.krakenT > 0))));
     setOn(W.complete, inGame && phase === 'complete');
     setOn(W.fail, inGame && phase === 'fail');
     setOn(W.world, inGame && phase === 'worldcomplete');
@@ -401,11 +399,6 @@
       var chip = this.chips[l - 1], st = sv.worlds[m.world].stars[l - 1] || 0;
       this.variant(chip, (l === 5 ? 'State=Final' : 'State=Default') + ', Stars=' + st);
       setText(one(chip, 'Level Number'), String(l));
-      var bf = sv.worlds[m.world].bestForm[l - 1] || 0, inst = one(chip, 'Best Form');           // CR-3: best form reached in this level (Goal flag when it reached the goal)
-      if (inst) {
-        show(inst, bf > 0);
-        if (bf > 0) { this.variant(inst, 'State=Reached, Goal=' + (bf >= M.goalForm(m.world, l) ? 'Yes' : 'No')); var pc = one(inst, 'Form Portrait'); if (pc && pc.tagName === 'CANVAS') Art.icon(pc, bf); }
-      }
     }
   };
 
@@ -460,7 +453,7 @@
     H.gbVal.forEach(function (el) { setText(el, Math.round(pct * 100) + '%'); });
     H.tick.forEach(function (el) { show(el, false); });
     // Form Track: the 8 forms (Reached / Current / Next / Beyond, the goal form carries the flag)
-    var trKey = form + ':' + s.goalForm;
+    var trKey = form + ':8';
     if (this.last.track !== trKey) {
       this.last.track = trKey;
       for (j = 1; j <= 8; j++) {
@@ -471,24 +464,24 @@
         }, this);
       }
     }
-    // Bonus Timer (HUD BonusPhase): whole seconds left, the Arc sweeps down
-    if (r.bonus) {
-      var bsec = Math.max(0, Math.ceil(r.bonusT - 1e-9)), bk = bsec + ':' + Math.round(r.bonusT * 10);
-      if (this.last.bonus !== bk) {
-        this.last.bonus = bk;
-        H.bonus.forEach(function (el) {
-          setText(one(el, 'Seconds'), String(bsec));
-          var arc = one(el, 'Arc'); if (arc) { var f = (Math.min(1, Math.max(0, r.bonusT) / BAL.GROWTH.BONUS_S) * 360).toFixed(1) + 'deg'; arc.style.setProperty('--sweep', f); arc.classList.add('sweep'); }
-        });
-      }
+    // CR-4 v5.1 (R-OE-52): level 5 of every world is a boss level: Boss Phase Pips (2 or 3 phases) and the Boss Name
+    var bs = s.bossState ? s.bossState() : null, isBoss = !!bs;
+    show(this.boss, isBoss); show(this.bossName, isBoss);
+    if (isBoss) {
+      for (i = 0; i < 3; i++) { var bp = one(this.boss, 'Phase ' + (i + 1)); if (bp) { show(bp, i < bs.pips); this.pip(bp, i < bs.phase); } }
+      setAttr(this.boss, 'data-phase', bs.phase); setText(this.bossName, T('oe_boss_name_' + r.world));
     }
-    var isBoss = s.ldef.boss === 'bloop';
-    show(this.boss, isBoss);
-    if (isBoss) { var ph = s.phaseNow(); for (i = 0; i < 3; i++) this.pip(one(this.boss, 'Phase ' + (i + 1)), i < ph); setAttr(this.boss, 'data-phase', ph); }
+    // BossFinale (R-OE-53): the stunned boss gets the highlight ring, the arrow and the "Eat the boss!" text on its screen position
+    if (top.state === 'BossFinale' && s.finaleBoss) {
+      var fb = s.finaleBoss, bx = s.scrX(fb.x), by = s.scrY(fb.y);
+      if (this.bossHi) { var bw = Math.max(140, fb.len * BAL.ZOOM * 1.2); this.bossHi.style.left = (bx - bw / 2) + 'px'; this.bossHi.style.top = (by - bw * 0.35) + 'px'; this.bossHi.style.width = bw + 'px'; this.bossHi.style.height = (bw * 0.7) + 'px'; }
+      if (this.bossArrow) { this.bossArrow.style.left = (bx - 60) + 'px'; this.bossArrow.style.top = (by - fb.len * BAL.ZOOM * 0.45 - 150) + 'px'; this.bossArrow.style.transformOrigin = '50% 50%'; this.bossArrow.style.transform = 'rotate(90deg)'; }
+      if (this.bossEat) setText(this.bossEat, T('oe_hud_boss_eat'));
+    }
     // jump indicator on the player (state = component variant Ready / Cooldown)
     var ji = this.jumpInd, js = s.jumpState(), jst = js.airborne ? 'Hidden' : (js.eligible ? 'Ready' : (js.cooldown > 0 && (p.y - s.waterY) <= BAL.BODY.jumpBL.classic * p.len ? 'Cooldown' : 'Hidden'));
     setAttr(ji, 'data-state', jst); show(ji, jst !== 'Hidden');
-    if (jst !== 'Hidden') { this.variant(ji, 'State=' + jst); ji.style.left = (p.x - s.cam.x) + 'px'; ji.style.top = p.y + 'px'; }
+    if (jst !== 'Hidden') { this.variant(ji, 'State=' + jst); ji.style.left = s.scrX(p.x) + 'px'; ji.style.top = s.scrY(p.y) + 'px'; }
     if (game.damagedT > BAL.invuln - 0.05 && this.last.vigT !== game.damagedT && !this.vigOn) { this.vigOn = true; this.vig.classList.remove('flash'); void this.vig.offsetWidth; this.vig.classList.add('flash'); }
     if (game.damagedT <= 0) this.vigOn = false;
 
@@ -507,7 +500,7 @@
       case 'start': this.syncStart(r); break;
       case 'pause': this.state(W.pause, r.pauseState); this.syncSettings(W.pause); break;
       case 'evolution': this.syncEvo(r); break;
-      case 'play': if (r.evoLightT > 0) this.syncEvo(r); if (r.goalT > 0) this.syncGoal(r); break;
+      case 'play': if (r.evoLightT > 0 || r.krakenT > 0) this.syncEvo(r); break;
       case 'complete': this.syncComplete(r); break;
       case 'fail': this.syncFail(r); break;
       case 'worldcomplete': this.syncWorld(r); break;
@@ -528,25 +521,25 @@
       if (!t) { show(m, false); continue; }
       var show1 = t.tb > 0 || Math.abs(s.player.x - t.x) < t.w;
       show(m, show1);
-      if (show1) { m.style.left = (t.x - s.cam.x - 110) + 'px'; m.style.top = (t.y - t.h / 2 - 90) + 'px'; m.setAttribute('data-target', t.type); }
+      if (show1) { m.style.left = (s.scrX(t.x) - 110) + 'px'; m.style.top = (s.scrY(t.y - t.h / 2) - 90) + 'px'; m.setAttribute('data-target', t.type); }
     }
   };
   P.syncHint = function () {
-    var game = this.game, W = this.W.hint, kind = game.hint, s = game.sim, cam = s.cam.x, p = s.player;
+    var game = this.game, W = this.W.hint, kind = game.hint, s = game.sim, p = s.player;
     this.state(W, kind);
     setText(one(W, 'Hint Text'), T(SIGNATURE_HINT[kind]));
-    W.style.setProperty('--hint-dy', (p.y + p.len * 0.3 > 600 ? -420 : 0) + 'px');       // plate (y 640-880) moves up when the player is low
+    W.style.setProperty('--hint-dy', (s.scrY(p.y + p.len * 0.3) > 600 ? -420 : 0) + 'px');       // plate (y 640-880) moves up when the player is low
     var arrow = one(W, 'Hint Arrow'), prey = one(W, 'Prey Arrow'), danger = one(W, 'Danger Marker');
-    if (kind === 'SideTap' && arrow) { arrow.style.left = (p.x - cam - arrow.offsetWidth / 2) + 'px'; arrow.style.top = Math.max(120, p.y - p.len * 0.3 - arrow.offsetHeight - 10) + 'px'; }      // above the shark (it rests on the seabed)
-    if (kind === 'SideJump' && arrow) { arrow.style.left = (p.x - cam - arrow.offsetWidth / 2) + 'px'; arrow.style.top = Math.max(90, s.waterY - 170) + 'px'; }
+    if (kind === 'SideTap' && arrow) { arrow.style.left = (s.scrX(p.x) - arrow.offsetWidth / 2) + 'px'; arrow.style.top = Math.max(120, s.scrY(p.y - p.len * 0.3) - arrow.offsetHeight - 10) + 'px'; }      // above the shark (it rests on the seabed)
+    if (kind === 'SideJump' && arrow) { arrow.style.left = (s.scrX(p.x) - arrow.offsetWidth / 2) + 'px'; arrow.style.top = Math.max(90, s.scrY(s.waterY) - 170) + 'px'; }
     if (kind === 'SideEat') {
       var best = null, bd = 1e9, i, c;
       for (i = 0; i < s.creatures.length; i++) { c = s.creatures[i]; if (c.role !== 'prey' || c.hidden || c.x < p.x) continue; var d = U.dist(c.x, c.y, p.x, p.y); if (d < bd) { bd = d; best = c; } }
       show(prey, !!best);
-      if (best && prey) { prey.style.left = (best.x - cam - best.len * 0.5 - prey.offsetWidth - 20) + 'px'; prey.style.top = (best.y - prey.offsetHeight / 2) + 'px'; }
+      if (best && prey) { prey.style.left = (s.scrX(best.x - best.len * 0.5) - prey.offsetWidth - 20) + 'px'; prey.style.top = (s.scrY(best.y) - prey.offsetHeight / 2) + 'px'; }
       var thr = s.side ? s.threatMarkers() : [], red = null;
       for (i = 0; i < thr.length; i++) if (thr[i].kind === 'red') { red = thr[i]; break; }
-      if (danger) { show(danger, !!red); if (red) { danger.style.left = (s.viewW - 96 - danger.offsetWidth) + 'px'; danger.style.top = (Math.max(190, Math.min(1000, red.y)) - danger.offsetHeight / 2) + 'px'; } }
+      if (danger) { show(danger, !!red); if (red) { danger.style.left = (s.viewW * BAL.ZOOM - 96 - danger.offsetWidth) + 'px'; danger.style.top = (Math.max(190, Math.min(1000, s.scrY(red.y))) - danger.offsetHeight / 2) + 'px'; } }
     }
   };
   // Side-scroller: Threat Markers at the right edge (lane height) for incoming predators, ambushers, hazards (red = Kind=Threat) and surface
@@ -560,9 +553,11 @@
     for (i = 0; i < this.threatEls.length; i++) {
       var e2 = this.threatEls[i], m = list[i];
       if (!m) { show(e2, false); continue; }
-      show(e2, true); this.variant(e2, m.kind === 'yellow' ? 'Kind=Surface' : 'Kind=Threat');
+      var sy1 = s.scrY(m.y), dir1 = sy1 < 190 ? 'Up' : (sy1 > 1000 ? 'Down' : 'Right');
+      show(e2, true); this.variant(e2, (m.kind === 'yellow' ? 'Kind=Surface' : 'Kind=Threat') + ', Direction=' + dir1);          // CR-4: Right / Up / Down (the marker sticks to the top / bottom edge for a lane outside the visible height)
       e2.setAttribute('data-state', 'Visible');
-      e2.style.left = (s.viewW - 96 - 72) + 'px'; e2.style.top = (clampY(m.y) - 36) + 'px';
+      e2.style.left = (s.viewW * BAL.ZOOM - 96 - 72) + 'px'; var sy0 = sy1; e2.style.top = (clampY(sy0) - 36) + 'px';
+      e2.setAttribute('data-edge', dir1 === 'Right' ? '' : dir1.toLowerCase());
     }
     var warns = [], c;
     if (s.side) for (i = 0; i < s.creatures.length; i++) { c = s.creatures[i]; if (c.warn > 0 && !c.dead) warns.push(c); }
@@ -571,7 +566,7 @@
     for (i = 0; i < this.warnEls.length; i++) {
       var we = this.warnEls[i], wc = warns[i];
       if (!wc) { show(we, false); continue; }
-      show(we, true); we.style.left = (wc.x - s.cam.x - 36) + 'px'; we.style.top = (wc.y - wc.len * 0.4 - 90) + 'px';
+      show(we, true); we.style.left = (s.scrX(wc.x) - 36) + 'px'; we.style.top = (s.scrY(wc.y - wc.len * 0.4) - 90) + 'px';
     }
   };
   P.syncStart = function (r) {
@@ -581,10 +576,9 @@
     setText(one(W, 'World Name'), T('oe_world_num', r.world) + ' - ' + T('oe_world_name_' + r.world));
     setText(one(W, 'Level Number'), fin ? T('oe_start_final') : T('oe_start_level', r.level));
     setAttr(one(W, 'Level Number'), 'data-state', fin ? 'Final' : 'Default');
-    var gf = this.game.sim.goalForm, gi = one(W, 'Goal Form Icon'), gpc = gi && one(gi, 'Form Portrait');
-    setText(one(W, 'Goal Text'), T('oe_start_goal', T('oe_form_name_' + gf)));
-    setText(one(W, 'Star Hint'), T('oe_start_stars', T('oe_form_name_' + Math.min(8, gf + 2))));
-    if (gpc && gpc.tagName === 'CANVAS') Art.icon(gpc, gf);
+    var gi = one(W, 'Goal Form Icon'), gpc = gi && one(gi, 'Form Portrait');
+    setText(one(W, 'Goal Text'), T('oe_start_goal')); setText(one(W, 'Goal Text 2'), T('oe_start_goal2')); setText(one(W, 'Star Hint'), T('oe_start_stars'));      // CR-4 v5.1: every level goes to the Kraken, 3 stars = 3 hearts left
+    if (gpc && gpc.tagName === 'CANVAS') Art.icon(gpc, 8);
     var nc = this.newCreatures(r.world, r.level), line = one(W, 'New Creature Line');
     setText(one(W, 'New Text'), nc.text ? T('oe_start_new', nc.text) : ''); show(line, !!nc.text);
     var cv = one(W, 'Creature Icon'), ctx = cv.getContext('2d'), def = nc.id && OE.CREATURES[nc.id];
@@ -593,9 +587,17 @@
     if (OE.Audio) OE.Audio.sfx('start');
   };
   P.syncEvo = function (r) {
-    var W = this.W.evo, light = r.phase === 'play', to = light ? r.evoLightTo : r.evo.to, key = (light ? 'L' : 'D') + to + ':' + (light ? 0 : r.evo.from);
-    this.state(W, light ? 'Light' : 'Default');
+    var W = this.W.evo, light = r.phase === 'play', kr = light && r.krakenT > 0, to = light ? r.evoLightTo : r.evo.to, key = (kr ? 'K' : (light ? 'L' : 'D')) + to + ':' + (light ? 0 : r.evo.from);
+    this.state(W, kr ? 'LightKraken' : (light ? 'Light' : 'Default'));
     if (this.last.evo === key && !(light && this.last.evoLightT !== r.evoLightT && r.evoLightT > BAL.GROWTH.EVO_LIGHT_S - 0.05)) return; this.last.evo = key;
+    if (kr) {
+      setText(one(W, 'Light Banner/Form Name'), T('oe_evo_kraken')); setText(one(W, 'Light Banner/Ability Line'), T('oe_evo_kraken_sub'));
+      var ka = one(W, 'Kraken Art'); if (ka && ka.tagName === 'CANVAS') Art.icon(ka, 8);
+      var oc2 = one(W, 'Light Banner/Old Form Icon/Form Portrait'), nc2 = one(W, 'Light Banner/New Form Icon/Form Portrait');
+      if (oc2 && oc2.tagName === 'CANVAS') Art.icon(oc2, 7); if (nc2 && nc2.tagName === 'CANVAS') Art.icon(nc2, 8);
+      this.confetti(one(W, 'Confetti'));
+      return;
+    }
     if (light) {
       setText(one(W, 'Light Banner/Form Name'), T('oe_evo_light', T('oe_form_name_' + to)));
       setText(one(W, 'Light Banner/Ability Line'), T('oe_jump_name_' + to));
@@ -607,12 +609,15 @@
     setText(one(W, 'Ability Text'), T('oe_evo_ability', T('oe_jump_name_' + to), T('oe_jump_target_' + to)));
     Art.icon(one(W, 'Form Art'), to);
   };
-  P.syncGoal = function (r) {
-    var W = this.W.goal, gf = this.game.sim.goalForm;
-    if (this.last.goal === r) return; this.last.goal = r;
-    var inst = one(W, 'Goal Icon'), pc = inst && one(inst, 'Form Portrait');
-    if (pc && pc.tagName === 'CANVAS') Art.icon(pc, gf);
-    if (OE.Audio) OE.Audio.sfx('win');
+  // CR-4 v5.1: confetti of the Kraken celebration (css animated pieces in the Confetti layer, created once)
+  P.confetti = function (box) {
+    if (!box || box.getAttribute('data-made')) return;
+    box.setAttribute('data-made', '1'); var cols = ['#ffd23f', '#ff6bd0', '#5dff9a', '#6fd3ff', '#ff8a4a'], i;
+    for (i = 0; i < 60; i++) {
+      var c = document.createElement('i'); c.className = 'confetti-piece'; c.style.left = (Math.random() * 100).toFixed(1) + '%'; c.style.background = cols[i % cols.length];
+      c.style.animationDelay = (Math.random() * 1.2).toFixed(2) + 's'; c.style.animationDuration = (1.6 + Math.random() * 1.4).toFixed(2) + 's'; c.style.transform = 'rotate(' + Math.round(Math.random() * 360) + 'deg)';
+      box.appendChild(c);
+    }
   };
   P.stars = function (win, n, path) {
     var box = one(win, path || 'Stars'), st = box.querySelectorAll('[data-layer^="Star "]');
@@ -630,14 +635,13 @@
     this.stars(W, res.stars);
     setText(one(W, 'Coins Row/Value'), '+' + res.coinsRow);
     setAttr(one(W, 'Coins Row'), 'data-value', res.coinsRow);
-    // CR-3: Forms Row = the form reached at the end (the goal form is the note), Forms Icon = its portrait, Next Star Hint = the form for the next star
-    setText(one(W, 'Forms Row/Label'), T('oe_lc_reached', T('oe_form_name_' + res.formAtEnd)));
-    setText(one(W, 'Forms Row/Note'), T('oe_lc_goal', T('oe_form_name_' + res.goalForm)));
-    setAttr(one(W, 'Forms Row'), 'data-value', res.formAtEnd);
-    var fi = one(W, 'Forms Icon'), fpc = fi && one(fi, 'Form Portrait');
-    if (fpc && fpc.tagName === 'CANVAS') Art.icon(fpc, res.formAtEnd);
+    // CR-4 v5.1: Hearts Row = the hearts left when the Kraken was reached (= the stars), Hearts Icons, the Kraken Line, the hint for the next star
+    setText(one(W, 'Hearts Row/Label'), T('oe_lc_hearts')); setAttr(one(W, 'Hearts Row'), 'data-value', res.heartsLeft);
+    setText(one(W, 'Kraken Line'), T('oe_lc_kraken'));
+    var hi = one(W, 'Hearts Icons');
+    if (hi) { var hh = hi.querySelectorAll('[data-layer^="Heart "]'); for (var q = 0; q < hh.length; q++) setSprite(hh[q], q < res.heartsLeft ? 'SPR_UI_Icn_Cmn_HeartFull' : 'SPR_UI_Icn_Cmn_HeartEmpty'); hi.setAttribute('data-variant', 'Count=' + res.heartsLeft); }
     var hint = one(W, 'Next Star Hint');
-    if (hint) { show(hint, res.stars < 3); setText(hint, T('oe_lc_nextstar', T('oe_form_name_' + Math.min(8, res.goalForm + res.stars)))); }
+    if (hint) { show(hint, res.stars < 3); setText(hint, T('oe_lc_next_star', res.stars + 1)); }
     show(one(W, 'Coins Row/Note'), false);
   };
   P.syncFail = function (r) {
@@ -661,15 +665,15 @@
     if (uw) { var up = one(W, 'Unlocked Card/Art Clip/Preview Art'); if (up) { up.setAttribute('data-sprite', 'SPR_UI_Img_Main_WorldPreview_' + uw); up.style.backgroundImage = 'var(--spr-SPR_UI_Img_Main_WorldPreview_' + uw + ')'; } }
     var lb = one(W, 'Lock Break'); if (lb) { lb.classList.remove('broken'); void lb.offsetWidth; lb.classList.add('broken'); }
     setText(one(W, 'Coins Row/Value'), '+' + res.coinsRow);
-    setText(one(W, 'Coins Row/World Bonus Value'), '+' + res.worldBonus);
-    show(one(W, 'Coins Row/Note'), res.worldBonus > 0 && res.firstWorldClear);
+    var wbn = one(W, 'Coins Row/Note');
+    if (wbn) { var parts = []; if (res.worldBonus > 0 && res.firstWorldClear) parts.push(T('oe_wc_world_bonus_val', res.worldBonus)); if (res.bossBonus > 0) parts.push(T(res.bossEaten ? 'oe_wc_boss_bonus' : 'oe_wc_boss_bonus_retreat', res.bossBonus)); setText(wbn, parts.join('   ')); show(wbn, parts.length > 0); }
   };
 
   /* ---------------------------------------------------------------- float texts (DOM, at the eat point) */
   P.floatText = function (x, y, text, color) {
-    var hud = this.W.hud, el = this.tmplFloat.cloneNode(true), cam = this.game.sim ? this.game.sim.cam.x : 0;
+    var hud = this.W.hud, el = this.tmplFloat.cloneNode(true), sm = this.game.sim;
     el.removeAttribute('data-template'); el.hidden = false; el.classList.add('float-text'); setText(el, text);
-    el.style.left = (x - cam - 100) + 'px'; el.style.top = (y - 32) + 'px'; el.style.width = '200px'; el.style.height = '64px';
+    el.style.left = ((sm ? sm.scrX(x) : x) - 100) + 'px'; el.style.top = ((sm ? sm.scrY(y) : y) - 32) + 'px'; el.style.width = '200px'; el.style.height = '64px';
     if (color) el.style.color = color;
     hud.appendChild(el); setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 800);
   };

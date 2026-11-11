@@ -22,6 +22,7 @@
       if (!this.init()) return;
       if (this.ctx.state === 'suspended') { try { var rp = this.ctx.resume(); if (rp && rp.catch) rp.catch(function () { /* a refused resume is not an error: the next gesture tries again */ }); } catch (e) { /* ignore */ } }
       if (!this.started) { this.started = true; this.applySettings(); }
+      this.primeVoice();
     },
     setSettings: function (s) {
       this.sound = s.sound !== false; this.music = s.music !== false; this.haptics = s.haptics !== false;
@@ -74,6 +75,65 @@
       var ua = g.navigator && g.navigator.userActivation;
       if (ua ? !ua.hasBeenActive : !this.started) return;           // browsers block vibrate before the first tap (console noise)
       if (this.haptics && g.navigator && g.navigator.vibrate) { try { g.navigator.vibrate(ms); } catch (e) { /* ignore */ } } },
+    /* ---- CR-4 item 7: the voice line "Go, Dani, go!!!" on every evolution ----
+       1. assets/audio/vo_go_dani.(mp3|m4a|ogg) when the manifest lists it (OE.assetManifest.vo_go_dani = { mp3, m4a, ogg }), played through an <audio> element;
+       2. otherwise the Web Speech API (speechSynthesis): English voice, rate 1.15, pitch 1.3, one utterance at a time (the previous one is cancelled).
+       Respects the Sound toggle, never throws (unsupported = silent), and is primed on the first tap (iOS Safari only speaks / plays after a gesture). Dev log only: voiceLog. */
+    voiceLog: [],
+    voiceFile: function () {
+      var m = OE.assetManifest && OE.assetManifest.vo_go_dani, a;
+      if (!m) return null;
+      try { a = g.document.createElement('audio'); } catch (e) { return null; }
+      var types = [['m4a', 'audio/mp4'], ['mp3', 'audio/mpeg'], ['ogg', 'audio/ogg; codecs=vorbis']], i;
+      for (i = 0; i < types.length; i++) if (m[types[i][0]] && a.canPlayType && a.canPlayType(types[i][1])) return m[types[i][0]];
+      return m.mp3 || m.m4a || m.ogg || null;
+    },
+    enVoice: function () {
+      var ss = g.speechSynthesis, list, i, pref = /Samantha|Google US English|Aaron|Daniel|Karen|Moira|Microsoft (Aria|Jenny|Guy)/;
+      try { list = ss.getVoices ? ss.getVoices() : []; } catch (e) { return null; }
+      for (i = 0; i < list.length; i++) if (/^en[-_]US/i.test(list[i].lang) && pref.test(list[i].name)) return list[i];
+      for (i = 0; i < list.length; i++) if (/^en[-_]US/i.test(list[i].lang)) return list[i];
+      for (i = 0; i < list.length; i++) if (/^en/i.test(list[i].lang)) return list[i];
+      return null;
+    },
+    // first user gesture: iOS Safari only lets speech / audio start after one, so an empty silent utterance and a silent <audio> start are done inside it
+    primeVoice: function () {
+      if (this.voicePrimed) return;
+      this.voicePrimed = true;
+      try { var ss = g.speechSynthesis, U = g.SpeechSynthesisUtterance; if (ss && U) { var u = new U(''); u.volume = 0; ss.speak(u); } } catch (e) { /* unsupported */ }
+      try {
+        var f = this.voiceFile();
+        if (f) { this.voEl = new g.Audio(f); this.voEl.preload = 'auto'; this.voEl.muted = true; var pp = this.voEl.play(); if (pp && pp.then) pp.then(function () { A.voEl.pause(); A.voEl.currentTime = 0; A.voEl.muted = false; }).catch(function () { if (A.voEl) A.voEl.muted = false; }); }
+      } catch (e2) { /* ignore */ }
+    },
+    voiceLine: function () {
+      if (!this.sound || !this.started) return false;                                   // Sound off = no voice
+      var done = false;
+      try {
+        var f = this.voiceFile();
+        if (f) {
+          if (!this.voEl) { this.voEl = new g.Audio(f); }
+          this.voEl.muted = false; this.voEl.volume = 1; this.voEl.currentTime = 0;
+          var p = this.voEl.play(); if (p && p.catch) p.catch(function () { /* a refused play is not an error */ });
+          done = true; this.voiceLog.push('file ' + f);
+        }
+      } catch (e) { done = false; }
+      if (!done) {
+        try {
+          var ss = g.speechSynthesis, U = g.SpeechSynthesisUtterance;
+          if (ss && U && ss.speak) {
+            if (ss.cancel) ss.cancel();
+            var u = new U('Go, Dani, go!'), v = this.enVoice();
+            if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
+            u.rate = 1.15; u.pitch = 1.3; u.volume = 1;
+            ss.speak(u); done = true; this.voiceLog.push('speech ' + (v ? v.name : 'default'));
+          }
+        } catch (e3) { done = false; }
+      }
+      if (this.voiceLog.length > 20) this.voiceLog.shift();
+      if (g.console && g.console.debug && /[?&]debug=1(&|$)/.test((g.location && g.location.search) || '')) g.console.debug('[voice] go_dani ' + (done ? this.voiceLog[this.voiceLog.length - 1] : 'unsupported'));
+      return done;
+    },
     // soft pentatonic ambience
     startMusic: function () {
       if (this.musicTimer || !this.ctx) return;
@@ -108,7 +168,7 @@
         case 'surfaceEat': case 'surfaceBite': this.sfx('break'); break;
         case 'break': this.sfx('break'); break;
         case 'tooBig': this.sfx('tooBig'); break;
-        case 'evolve': this.sfx('evolve'); break;
+        case 'evolve': this.sfx('evolve'); this.voiceLine(); break;
         case 'win': this.sfx('win'); break;
         case 'fail': this.sfx('fail'); break;
         case 'eventStart': this.sfx('event'); break;

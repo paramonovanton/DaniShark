@@ -50,7 +50,7 @@
     this.stepNo++; this.t += dt;
     this.updateEnvSide(dt);
     this.updatePlayerSide(dt);
-    this.snapCamera();
+    this.snapCamera(); this.updateCameraY(dt); this.stepBoss(dt);
     if (!this.dying) {
       this.updateObjsSide(dt);
       this.updateCreaturesSide(dt);
@@ -130,7 +130,7 @@
     if (!name) { var r = rng.next(); name = r < 0.7 ? 'mid' : (r < 0.85 ? 'surface' : 'deep'); }
     if (pat === 'FLOOR' || def.ai === 'bottom' || name === 'floor') return FLOOR + 22;
     var ls = SD.laneBand[name], lane = ls[rng.int(0, ls.length - 1)];
-    return SD.lanes[lane];
+    return this.lanes[lane];
   };
   P.closingOf = function (v) { return Math.min(SD.maxClosing, v + this.fwdBase()); };
   P.aheadX = function (closing) { return this.viewRight() + Math.max(SD.spawnAhead, closing * SD.telegraphS); };
@@ -214,7 +214,7 @@
     if (pat === 'STRAIGHT' && sm.turnFrom && this.level >= sm.turnFrom) pat = 'ONE_TURN';
     if (pat === 'AMBUSH_DASH') return this.spawnAmbusher(id, o);
     if (pat === 'BOSS') return null;
-    var v = sm.v ? rng.range(sm.v[0], sm.v[1]) * SD.speedMul[L] : 0;
+    var v = sm.v ? rng.range(sm.v[0], sm.v[1]) * this.diff.speed : 0;
     v = Math.min(v, SD.maxClosing - this.fwdBase());
     var closing = pat === 'STATIC' ? this.fwdBase() : this.closingOf(v);
     var x = o.x !== undefined ? o.x : this.aheadX(closing) + this.visLen(o.size || def.size, def) * 0.5;   // the whole body starts outside the view, so it enters about 1 s later
@@ -229,11 +229,11 @@
       n = Math.max(2, Math.min(n, room));
       for (i = 0; i < n; i++) list.push([x + i * rng.range(55, 85), y + rng.range(-22, 22), 'LINE']);
     } else if (pat === 'GROUP' && !o.single) {
-      var cnt = sm.n || rng.int(2, 3), form = sm.form === 'LINE' && rng.chance(0.4) ? 'STAGGER' : (sm.form || 'V'), lane = SD.lanes.indexOf(y);
+      var cnt = sm.n || rng.int(2, 3), form = sm.form === 'LINE' && rng.chance(0.4) ? 'STAGGER' : (sm.form || 'V'), lane = this.lanes.indexOf(y);
       if (lane < 0) lane = 3;
       lane = clamp(lane, 1, 4);
       for (i = 0; i < cnt; i++) {
-        var side = i === 0 ? 0 : (i % 2 ? -1 : 1), ly = SD.lanes[clamp(lane + side, 0, 5)];
+        var side = i === 0 ? 0 : (i % 2 ? -1 : 1), ly = this.lanes[clamp(lane + side, 0, 5)];
         var gx = form === 'LINE' ? x + i * 130 : (form === 'STAGGER' ? x + (i % 2) * 110 : x + (i ? 100 : 0));
         list.push([gx, form === 'LINE' ? y + rng.range(-12, 12) : ly, i === 1 && sm.diag ? 'DIAGONAL' : (i === 2 && sm.diag ? 'DIAGONAL' : 'STRAIGHT'), side]);
       }
@@ -293,7 +293,8 @@
       this.sizeCreature(c); c.role = this.roleOf(c);
       mv = c.mv;
       c.vx = c.vy = 0; c.tilt = 0;
-      if (mv && mv.pat === 'AMBUSH') this.ambushStep(c, dt);
+      if (c.scr) { this.moveScr(c, dt); if (c.finaleBoss) c.vx = this.fwd - BAL.BOSSES.FINALE.drift; }       // CR-4: a scripted boss attack: one straight line (the finale boss drifts left on the screen)
+      else if (mv && mv.pat === 'AMBUSH') this.ambushStep(c, dt);
       else if (mv && mv.pat === 'BOSS') { c.x = this.cam.x + this.viewW - c.len * 0.18; c.y = 760; }
       else if (mv && mv.pat !== 'STATIC') this.segStep(c);
       this.sideSpecial(c, dt);
@@ -309,6 +310,7 @@
       }
       if (Math.abs(c.vx) > 10) c.facing = sign(c.vx);
       if (!(c.mv && c.mv.pat === 'BOSS') && c.x < camL) c.dead = true;           // removed 600 px behind the left edge
+      if (c.scr && this.scrGone(c)) c.dead = true;
       if (!c.dead) alive.push(c);
     }
     this.creatures = alive;
@@ -562,6 +564,8 @@
       this.spawnSide(id, { y: y, size: this.rosterSize(id, def), single: tries >= 3 });          // a pack that does not fit the corridor rule is tried again as one body
       fresh = this.creatures.slice(n0);
       fresh.forEach(function (c) { c.batch = batch; });
+      // a big single straight mover (giant squid, leviathan...) leaves a free corridor on one side only when it sits near the top or the bottom of the play band: fit its lane
+      if (fresh.length === 1 && fresh[0].br > 90 && sm.p !== 'FLOOR' && sm.p !== 'AMBUSH_DASH' && sm.p !== 'STATIC' && sm.p !== 'BOSS' && (fresh[0].br > 130 || ((sm.p === 'STRAIGHT' || sm.p === 'ONE_TURN') && !(fresh[0].mv && fresh[0].mv.segs && fresh[0].mv.segs.some(function (sg) { return sg.vy; }))))) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, SD.corridor + CORR_MARGIN);
       if (fresh.length && this.fairOK(fresh) && this.fairOver(fresh, null, strict)) { this.fairFails = 0; return fresh[0]; }
       this.creatures.length = n0;
     }
@@ -572,15 +576,35 @@
     var ld = this.ldef, L = this.level - 1, S = this.sT, i, e, rng = this.rng, p = this.player, pick;
     // spawn events (spec v4.1, R-OE-42): three streams with the rates 55 : 15 : 30 (prey = the calibrated stream, peers and threats are extra); a threat refused by
     // the fairness checks is retried in 1.2 s without holding up the prey
-    var I = SD.interval.prey[L] * this.preyMult(), cl = this.classes(), hasT = cl.threat.length > 0, W = BAL.GROWTH.SPAWN_WEIGHTS, pk;
+    // CR-4 v5.1 (R-OE-50): the prey stream is the calibrated one (cap = the difficulty table's max prey), peers run at 15/45 of its rate, predators and hazards run on
+    // their OWN interval tables (BAL.SIDE.DIFFICULTY_TABLE: predator 12 .. 4.2 s, hazard 10 .. 4.2 s by level), capped by max predators / hazard types; a refused threat is
+    // retried (another pick, then 0.5 s) so the 300 unit corridor and the 2-threat window hold; on a scripted boss level the boss director supplies the predators
+    var I = SD.interval.prey[L] * this.preyMult(), cl = this.classes(), hasT = cl.threat.length > 0, W = BAL.GROWTH.SPAWN_WEIGHTS, pk, D = this.diff, cap = D.maxprey, self = this;
     S.prey -= dt;
-    if (S.prey <= 0) { S.prey = I; this.ev.prey++; if (this.foodCost() < BAL.foodMax[L] * SD.maxOnScreenPrey) this.spawnPrey(); }
+    if (S.prey <= 0) { S.prey = I; this.ev.prey++; if (this.foodCost() < cap) this.spawnPrey(); }
     if (hasT) {
-      S.peerT = (S.peerT === undefined ? I * W.prey / W.peer * 0.6 : S.peerT) - dt;
-      if (S.peerT <= 0) { S.peerT = I * W.prey / W.peer; this.ev.peer++; if (this.foodCost() < BAL.foodMax[L] * SD.maxOnScreenPrey) { pk = this.peerPick(); this.spawnPrey(undefined, pk.id, pk.size); } }
-      S.thrT = (S.thrT === undefined ? I * W.prey / W.threat * 0.5 : S.thrT) - dt;
-      if (S.thrT <= 0 && (S.bossWait || 0) > (BAL.BOSS_HOLD === undefined ? 3 : BAL.BOSS_HOLD)) S.thrT = 0.4;                      // a boss ring has been waiting more than 3 s for a free corridor: no new threat until it has gone out (boss level 7-5: about 20 % threats, no violation)
-      if (S.thrT <= 0) { if (this.spawnThreat(this.pickThreat()) || this.spawnThreat(this.pickThreat())) { this.ev.threat++; S.thrT = I * W.prey / W.threat * ((BAL.SIDE_THREAT_MUL || {})[this.world + '-' + this.level] || 1); } else S.thrT = 0.5; }   // a refused threat is tried again with another pick, then after 0.5 s
+      S.peerT = (S.peerT === undefined ? I * 3 * 0.6 : S.peerT) - dt;
+      if (S.peerT <= 0) { S.peerT = I * 3; this.ev.peer++; if (this.foodCost() < cap) { pk = this.peerPick(); this.spawnPrey(undefined, pk.id, pk.size); } }
+      var holdBoss = (S.bossWait || 0) > (BAL.BOSS_HOLD === undefined ? 3 : BAL.BOSS_HOLD);                                 // a boss ring waits for a free corridor: no new threat until it has gone out
+      var preds = (ld.pred || []).length && !this.bossIsScripted(), hazs = (ld.haz || []).length, np = 0, hz = {}, nh = 0, k2, cc;
+      for (k2 = 0; k2 < this.creatures.length; k2++) { cc = this.creatures[k2]; if (cc.dead || cc.bossAtk) continue; if (cc.role === 'predator' && cc.x > this.cam.x - 200) np++; else if (cc.role === 'hazard' && !hz[cc.type]) { hz[cc.type] = 1; nh++; } }
+      if (preds) {
+        S.predT = (S.predT === undefined ? D.pred * 0.5 : S.predT) - dt;
+        if (S.predT <= 0 && holdBoss) S.predT = 0.4;
+        if (S.predT <= 0) {
+          if (np >= D.maxpred) S.predT = 1;
+          else { var pid = this.rng.wpick(ld.pred); if (this.spawnThreat(pid) || this.spawnThreat(this.rng.wpick(ld.pred))) { this.ev.threat++; S.predT = D.pred; } else S.predT = 0.5; }
+        }
+      }
+      if (hazs) {
+        S.hazT = (S.hazT === undefined ? D.haz * 0.6 : S.hazT) - dt;
+        if (S.hazT <= 0 && holdBoss) S.hazT = 0.4;
+        if (S.hazT <= 0) {
+          var hid = this.rng.wpick(ld.haz);
+          if (nh >= D.haztypes && !hz[hid]) S.hazT = 1;
+          else if (this.spawnThreat(hid)) { this.ev.threat++; S.hazT = D.haz; } else S.hazT = 0.5;
+        }
+      }
     }
     // passive giants and periodic growth sources
     var pas = ld.pas || [];
@@ -595,7 +619,7 @@
       if (S.per[i] <= 0) {
         S.per[i] = per[i].every;
         var def = CR[per[i].id], sm = SM[per[i].id] || { p: 'STRAIGHT', v: [100, 100] }, n = per[i].n, y = this.laneY(def, sm.p), x0 = this.aheadX(200), k, c;
-        var v = rng.range(sm.v[0], sm.v[1]) * SD.speedMul[L];
+        var v = rng.range(sm.v[0], sm.v[1]) * this.diff.speed;
         var nPer = this.creatures.length, grp = [];
         for (k = 0; k < (def.ai === 'school' ? n : Math.min(n, 3)); k++) {
           c = this.makeMover(per[i].id, x0 + k * rng.range(55, 85), y + rng.range(-22, 22), sm.p === 'LINE' || def.ai === 'school' ? 'LINE' : sm.p, v);
@@ -631,7 +655,8 @@
   };
   P.spawnEnv = function (kind, x) {
     var rng = this.rng, wy = this.waterY;
-    if (kind === 'struct') {                                                        // drifting walls with a 300 px gap; contact costs a heart
+    if (kind === 'struct') {
+      x = Math.max(x, this.viewRight() + 1.25 * (this.fwd + 60));                   // CR-4: at least 1.25 s outside the view (red marker) before it enters                                                        // drifting walls with a 300 px gap; contact costs a heart
       var gy, tries, wall;
       for (tries = 0; tries < 6; tries++) {                                         // re-lane the gap until the corridor rule holds over the crossing
         var gh = this.gapFor();
@@ -651,7 +676,7 @@
   P.gapMaxY = function (gapH, old) { return Math.max(old, BAL.seabedY - 0.6 * this.player.r - gapH / 2); };
   P.gapFor = function () { return Math.max(SD.boss.gap, Math.round(2.4 * this.player.r + 110)); };
   P.addShockWall = function (speedMul, boss) {
-    var gy, x = this.viewRight() + 100, tries, wall;
+    var gy, x = this.viewRight() + Math.max(100, 1.25 * (this.fwd + SD.boss.wallSpeed * (speedMul || 1))), tries, wall;      // CR-4: at least 1.25 s outside the view (red marker) before it enters
     for (tries = 0; tries < 12; tries++) {
       var gh = this.gapFor();
       gy = this.rng.range(this.waterY + 180, this.gapMaxY(gh, FLOOR - 120));
@@ -746,6 +771,8 @@
     var out = [], i, c, vr = this.viewRight(), L = this.threatsList();
     for (i = 0; i < L.length; i++) { c = L[i]; if (c.x - c.len * 0.5 > vr) out.push({ id: c.id, kind: 'red', y: c.y }); }
     for (i = 0; i < this.surface.length; i++) { c = this.surface[i]; if (!c.dead && c.x - c.w * 0.5 > vr) out.push({ id: c.id, kind: 'yellow', y: c.y }); }
+    for (i = 0; i < this.objs.length; i++) { c = this.objs[i]; if ((c.kind === 'wall' || c.kind === 'swall' || c.kind === 'column') && c.x - c.w * 0.5 > vr) out.push({ id: c.id, kind: 'red', y: c.gapY }); }
+    for (i = 0; i < this.bossTele.length; i++) out.push({ id: this.bossTele[i].id, kind: 'red', y: this.bossTele[i].y });         // CR-4: boss attacks are announced on their lane (>= 1.0 s)   // CR-4: blockers get a red marker at the height of their gap while they are still outside the view
     return out;
   };
   // QA: remove every creature, surface target, object and pickup; freeze = also stop the spawner

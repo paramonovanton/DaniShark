@@ -19,7 +19,7 @@
     oe_settings_control_side_hint: 'Tap to swim up. The shark swims forward by itself.', oe_settings_control_classic_hint: 'Touch and hold to swim anywhere.', oe_settings_reset: 'Reset progress',
     oe_settings_reset_warn: 'Delete all progress and start again?', oe_settings_confirm: 'Delete',
     oe_settings_cancel: 'Cancel',
-    oe_start_goal: 'Reach {0}', oe_start_stars: '3 stars: reach {0}', oe_start_level: 'Level {0}', oe_start_final: 'Final level',
+    oe_start_goal: 'Become a Kraken', oe_start_goal2: 'Evolve 7 times', oe_start_stars: '3 stars: finish with 3 hearts', oe_start_level: 'Level {0}', oe_start_final: 'Final level',
     oe_start_new: 'New: {0}',
     oe_hud_level: '{0} - Level {1}/5', oe_hud_size: 'Size {0}', oe_hud_too_big: 'Too big',
     oe_hint_move: 'Touch and hold to swim', oe_hint_eat: 'Eat smaller fish to grow',
@@ -42,7 +42,7 @@
     oe_evt_cargo: 'Cargo Ship!', oe_evt_cargo_hint: 'Smash it for coins',
     oe_evt_aircraft: 'Aircraft Challenge!', oe_evt_aircraft_hint: 'Time your jumps',
     oe_evt_island: 'Island Destruction!', oe_evt_island_hint: 'Bite it down in 3 jumps',
-    oe_lc_title: 'Level Complete', oe_lc_coins: 'Coins', oe_lc_reached: 'Reached {0}', oe_lc_goal: 'Goal: {0}', oe_lc_nextstar: 'Next star: {0}', oe_lc_next: 'Next Level',
+    oe_lc_title: 'Level Complete', oe_lc_coins: 'Coins', oe_lc_hearts: 'Hearts left', oe_lc_kraken: 'You became a Kraken!', oe_lc_next_star: 'Next star: finish with {0} hearts', oe_lc_next: 'Next Level',
     oe_lc_replay: 'Replay', oe_lc_cap: 'Max growth for this world',
     oe_fail_title: 'Eaten!', oe_fail_cause_eaten: 'Eaten by {0}', oe_fail_cause_hazard: 'Hurt by {0}',
     oe_fail_coins: 'Coins you collected are kept', oe_fail_retry: 'Try Again',
@@ -54,7 +54,8 @@
     oe_rotate_text: 'Turn your phone sideways to play', oe_rotate_dismiss: 'Play anyway',
     oe_hud_level_short: 'Level {0}/5',
     // CR-3: goal banner, bonus phase, light evolution banner, best form
-    oe_goal_title: 'Goal reached!', oe_goal_sub: 'Evolve more for extra stars', oe_hud_finish: 'Finish', oe_evo_light: '{0}!', oe_best_form: 'Best: {0}',
+    oe_hud_boss_eat: 'Eat the boss!', oe_evo_kraken: 'Kraken!', oe_evo_kraken_sub: 'You became a Kraken!', oe_wc_world_bonus_val: 'World bonus +{0}', oe_wc_boss_bonus: 'Boss bonus +{0}', oe_wc_boss_bonus_retreat: 'Boss bonus +{0} (it escaped)',
+    oe_boss_name_1: 'Great Grouper', oe_boss_name_2: 'Lionfish Pair', oe_boss_name_3: 'Anglerfish', oe_boss_name_4: 'Orca Pod', oe_boss_name_5: 'Submarines and Giant Squid', oe_boss_name_6: 'Mosasaurus', oe_boss_name_7: 'The Bloop', oe_evo_light: '{0}!', oe_best_form: 'Best: {0}',
     // browser play (BUG-U2): fullscreen button and toasts
     oe_fs_label: 'Fullscreen',
     oe_fs_enter: 'Fullscreen', oe_fs_exit: 'Exit fullscreen',

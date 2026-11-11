@@ -10,10 +10,15 @@
     DESIGN_W: 1920, DESIGN_H: 1080, VIEW_W_MIN: 1440, VIEW_W_MAX: 2520, VIEW_H: 1080, HUD_NARROW_W: 1700,
     W: 3840, H: 1080,                       // world size (sim coordinates)
     waterY: 330, seabedY: 990, floorBand: [990, 1080],
+    deepWaterY: 0,           // CR-4: The Abyss has no above-water zone: the 'surface' is the top edge of the view (the top clamp of the player), no sky, no jump band
+    bandsDeep: { surface: [90, 380], mid: [380, 700], deep: [700, 960], floor: [960, 1040] },
     // CR-3 / R-OE-46 (BUG-U1): the player centre is clamped to [waterY + bodyR, seabedY - bodyR]; the floor line y = seabedY is the resting line of the player AND of every floor creature (centre y = seabedY - its own bodyR)
     hearts: 3, eatRatio: 1.15,
     maxGP: 450,               // CR-3: level GP 0..450, restarts at 0 every level
-    anchors: [[0, 10], [60, 18], [120, 32], [180, 50], [240, 78], [300, 120], [360, 180], [420, 260], [450, 280]],
+    // CR-4 (R-OE-06 / 28 / 51): distinct size steps. S at the start of form f = 10 x SIZE_STEP^(f-1) (10, 12, 14.4 ... 35.8); inside a form S grows by IN_FORM of the gap to the next start; len = LEN_PER_S x S
+    SIZE_STEP: 1.2, IN_FORM: 0.2, LEN_PER_S: 9,
+    ZOOM: 1.25,                // CR-4 (R-OE-49): constant arena zoom (tunable 1.2 .. 1.3); the visible world is the 1920 x 1080 view / ZOOM
+    CAM_Y: { dead: 100, lerp: 0.12, topMax: 216, centre: 432, lookUpWithin: 200 },
     maxSpeedBL: 3.0,          // player max speed, body lengths per second
     stopRadius: 40, glideS: 0.5,
     bumpKnock: 160, bumpStun: 0.4, dmgKnock: 200, invuln: 1.5, evoInvuln: 1.5,
@@ -22,7 +27,7 @@
     loadMaxS: 12,                           // BUG-U3: the loading screen ends after this many seconds even if an image request never answers
     levelStartS: 2.0, assetWaitS: 5, evoAutoS: 4.0, eventBannerS: 2.5, lockedToastS: 2.5, failDelayS: 0.8,
     camera: { lerp: 0.1, dead: 290 },
-    playerLenBase: 120, playerLenSpan: 140, playerLenMin: 120, playerLenMax: 260, creatureLen: [26, 760], thicknessMax: 0.4,
+    playerLenMin: 90, playerLenMax: 335, creatureLen: [26, 760], thicknessMax: 0.4,
     playerStart: { x: 960, y: 660 },
     bands: { surface: [370, 560], mid: [560, 800], deep: [800, 960], floor: [960, 1040] },
     spawnMarginX: 240, spawnNear: 680, spawnFar: 930, despawnX: 2400, detectCap: 1000,
@@ -35,13 +40,14 @@
     hazardTypes: [1, 2, 2, 3, 3],
     /* ---- CR-3 (spec v4 constants.BAL.GROWTH / BODY / ROSTER_REL): per-level growth, goals, bonus phase, body, rosters by relative size ---- */
     SIDE_THREAT_MUL: {"1-3": 1.3, "1-4": 1.1, "1-5": 0.8, "2-5": 0.8, "3-5": 0.5, "7-5": 0.85},   // Side-scroller: per-level factor on the threat interval (spec v4.1: keep every level at 20..40 % threat spawn events; boss levels lose slots to rings)
-    PACE: {1: [3.22, 2.31, 2.87, 3.98, 16.98], 2: [3.15, 2.73, 2.94, 3.07, 8.06], 3: [7.07, 5.37, 5.62, 6.02, 26.68], 4: [2.74, 3.82, 4.12, 4.37, 4.81], 5: [1.26, 1.44, 1.55, 1.81, 1.9], 6: [1.91, 2.01, 1.15, 1.57, 1.88], 7: [3.34, 2.4, 2.81, 3.52, 3.37]},   // Side-scroller prey interval factor per level, fitted (mean of 4 seeds) with tests/bot.js (OE_BOT_SIDE, skilled y control, immortal) to (goal form - 1) x step time + 15 s
+    PACE: {1: [1.46, 1.57, 1.95, 2.86, 50.73], 2: [1.89, 2.03, 2.5, 2.56, 5.4], 3: [5.08, 4.31, 4.78, 5.5, 26.68], 4: [2.74, 3.6, 4.12, 4.93, 6.93], 5: [1.16, 1.37, 1.55, 1.81, 2.27], 6: [1.91, 2.66, 1.83, 2.27, 2.42], 7: [4.49, 2.63, 3.78, 3.89, 4.42]},   // Side-scroller prey interval factor per level, fitted (mean of 4 seeds) with tests/bot.js (OE_BOT_SIDE, skilled y control, immortal) to the Kraken target (7 x step + 15 s) x level factor (CR-4 v5.1; the boss levels are partly fed by the boss director's schools)
     PACE_C: {1: [0.5, 0.5, 0.5, 0.5, 0.5], 2: [0.5, 0.5, 0.5, 0.5, 0.5], 3: [0.5, 0.5, 0.5, 0.5, 0.5], 4: [0.5, 0.5, 0.5, 0.5, 0.5], 5: [0.5, 0.5, 0.5, 0.5, 0.5], 6: [0.5, 0.5, 0.5, 0.5, 0.5], 7: [0.5, 0.5, 0.5, 0.5, 0.5]},   // Classic prey interval factor per level (neutral 0.5; the pacing is fitted with GP_C)
     BUDGET_C: {1: [1, 1, 1, 1, 1], 2: [1, 1, 1, 1, 1], 3: [1, 1, 1, 1, 1], 4: [1, 1, 1, 1, 1], 5: [1, 1, 1, 1, 1], 6: [1, 1, 1, 1, 1], 7: [1, 1, 1, 1, 1]},   // Classic: factor on the prey budget (foodTarget) per level (1 = the level table x BAL.foodWorldMul)
-    GP_C: {1: [1, 1.0, 0.91, 0.92, 0.65], 2: [0.87, 1.36, 1.82, 0.85, 0.54], 3: [1, 0.53, 0.43, 0.43, 0.37], 4: [0.58, 0.46, 0.49, 0.36, 0.31], 5: [0.86, 1.03, 1.24, 1.15, 0.85], 6: [1.22, 1.59, 1.33, 1.13, 0.62], 7: [1.58, 1.3, 1.15, 1.07, 1.01]},   // Classic: factor on the GP of a bite per level, fitted with tests/bot.js to (goal form - 1) x step + 15 s (the pacing knob that does not depend on spawn luck)
-    GROWTH: {"SPAWN_WEIGHTS": {"prey": 0.55, "peer": 0.15, "threat": 0.30}, "MIN_THREAT_REL": 1.25, "CLASSIC_THREAT_BAND": [0.25, 0.40], "CLASSIC_THREAT_MAX": 12,"FORM_GP": [0, 60, 120, 180, 240, 300, 360, 420], "GP_MAX": 450, "SURFACE_REWARD_BASE_GP": 60, "GOAL_FORM": {"1": [4, 4, 4, 4, 5], "2": [4, 4, 4, 5, 5], "3": [4, 4, 5, 5, 5], "4": [4, 5, 5, 5, 5], "5": [5, 5, 5, 5, 6], "6": [5, 5, 5, 6, 6], "7": [5, 5, 6, 6, 6]}, "BONUS_S": 60, "GOAL_BANNER_S": 2.0, "HEART_ON_EVOLVE": 1, "HEARTS_MAX": 3, "EVO_LIGHT_S": 1.2, "EVO_INVULN_S": 1.5, "STEP_TIME_S_BY_WORLD": {"1": 55, "2": 52, "3": 50, "4": 47, "5": 45, "6": 42, "7": 40}, "PREY_INTERVAL_MULT_BY_WORLD": {"1": 1.0, "2": 0.95, "3": 0.9, "4": 0.85, "5": 0.8, "6": 0.75, "7": 0.7}, "EVENT_DELAY_S": 20, "EVENT_START_FORM": {"pirate_treasure": 5, "aircraft_challenge": 6, "island_destruction": 6, "cargo_ship": 7}, "SURFACE_POOL": {"world_list_eligible": 0.5, "teaser_next_tier": 0.25, "form_generic": 0.25}},
-    BODY: { bodyR: 0.26, mouthR: 0.20, mouthOffset: 0.40, jumpBL: { side: 0.6, classic: 1.5 }, lenEaseS: 0.15, eatPopPct: 4, eatPopS: 0.2 },
-    ROSTER_REL: {"1": {"S_ref": 16.67, "rel": {"sardine": 0.24, "clownfish": 0.36, "reeffish": 0.48, "snailfish": 0.54, "crab": 0.72, "pufferfish": 0.96, "snapcrab": 0.84, "grouper": 1.8, "grouper_boss": 2.04}}, "2": {"S_ref": 33.64, "rel": {"salmon": 0.476, "trout": 0.654, "squid": 0.832, "jellyfish": 0.714, "turtle": 0.832, "lionfish": 1.546}}, "3": {"S_ref": 50.0, "rel": {"lanternfish": 0.56, "hatchetfish": 0.68, "moray": 0.92, "stingray": 1.0, "manta": 1.2, "shark": 1.52, "hammerhead": 1.64, "anglerfish": 1.8}}, "4": {"S_ref": 78.0, "rel": {"barracuda": 0.564, "sunfish": 0.769, "dolphin": 1.282, "orca": 1.667, "spermwhale": 2.179, "bluewhale": 3.077}}, "5": {"S_ref": 120.0, "rel": {"viperfish": 0.583, "gulper": 0.75, "anglervar": 1.0, "eel": 0.917, "spermwhale5": 1.25, "giantsquid": 1.583, "submarine": 1.333}}, "6": {"S_ref": 174.55, "rel": {"ammonite": 0.458, "coelacanth": 0.516, "dunkle": 0.859, "plesio": 1.089, "helico": 1.146, "elasmo": 1.375, "mosa": 1.547}}, "7": {"S_ref": 260.0, "rel": {"spiritjelly": 0.577, "abyssal": 0.692, "giantsquid7": 1.192, "leviathan": 1.308, "bloop": 1.538}}},
+    GP_C: {1: [1.56, 1.7, 1.45, 1.51, 0.65], 2: [1.47, 2.41, 2.28, 1.27, 0.7], 3: [1.17, 0.67, 0.55, 0.47, 0.42], 4: [0.78, 0.69, 0.64, 0.46, 0.36], 5: [1.41, 1.35, 1.41, 1.15, 0.85], 6: [1.06, 0.87, 0.92, 0.75, 0.62], 7: [1.33, 1.17, 1.13, 1.01, 1.1]},   // Classic: factor on the GP of a bite per level, fitted with tests/bot.js to the Kraken target (7 x step + 15 s) x level factor = 240 .. 386 s (CR-4 v5.1; the pacing knob that does not depend on spawn luck)
+    GROWTH: {"SPAWN_WEIGHTS": {"prey": 0.55, "peer": 0.15, "threat": 0.30}, "MIN_THREAT_REL": 1.25, "CLASSIC_THREAT_BAND": [0.25, 0.40], "CLASSIC_THREAT_MAX": 12,"FORM_GP": [0, 60, 120, 180, 240, 300, 360, 420], "GP_MAX": 450, "SURFACE_REWARD_BASE_GP": 60, "GOAL_FORM": 8, "KRAKEN_CELEBRATION_S": 2.0, "KRAKEN_BANNER_BOSS_S": 1.2, "HEART_ON_EVOLVE": 1, "HEART_ON_EVOLVE_FORMS": [3, 5, 7], "HEARTS_MAX": 3, "EVO_LIGHT_S": 1.2, "EVO_INVULN_S": 1.5, "STEP_TIME_S_BY_WORLD": {"1": 36, "2": 38, "3": 40, "4": 42, "5": 44, "6": 46, "7": 48}, "LEVEL_DURATION_FACTOR": [0.9, 0.95, 1.0, 1.05, 1.1],      // CR-4 v5.1: target time to Kraken = (7 x step time + 15) x level factor (240 .. 386 s, average 309 s)
+     "PREY_INTERVAL_MULT_BY_WORLD": {"1": 1.0, "2": 0.95, "3": 0.9, "4": 0.85, "5": 0.8, "6": 0.75, "7": 0.7}, "EVENT_DELAY_S": 20, "EVENT_START_FORM": {"pirate_treasure": 5, "aircraft_challenge": 6, "island_destruction": 6, "cargo_ship": 7}, "SURFACE_POOL": {"world_list_eligible": 0.5, "teaser_next_tier": 0.25, "form_generic": 0.25}},
+    BODY: { bodyR: 0.26, mouthR: 0.20, mouthOffset: 0.40, jumpBL: { side: 0.6, classic: 1.5 }, lenEaseS: 0.15, evoEaseS: 0.4, eatPopPct: 4, eatPopS: 0.2 },
+    ROSTER_REL: {"1": {"S_ref": 16.67, "rel": {"sardine": 0.24, "clownfish": 0.36, "reeffish": 0.48, "snailfish": 0.54, "crab": 0.72, "pufferfish": 0.96, "snapcrab": 0.84, "grouper": 1.8, "grouper_boss": 2.04}}, "2": {"S_ref": 33.64, "rel": {"salmon": 0.476, "trout": 0.654, "squid": 0.832, "jellyfish": 0.714, "turtle": 0.832, "lionfish": 1.546}}, "3": {"S_ref": 50.0, "rel": {"jellyfish": 0.714, "lanternfish": 0.56, "hatchetfish": 0.68, "moray": 0.92, "stingray": 1.0, "manta": 1.2, "shark": 1.52, "hammerhead": 1.64, "anglerfish": 1.8}}, "4": {"S_ref": 78.0, "rel": {"jellyfish": 0.714, "barracuda": 0.564, "sunfish": 0.769, "dolphin": 1.282, "orca": 1.667, "spermwhale": 2.179, "bluewhale": 3.077}}, "5": {"S_ref": 120.0, "rel": {"viperfish": 0.583, "gulper": 0.75, "anglervar": 1.0, "eel": 0.917, "spermwhale5": 1.25, "giantsquid": 1.583, "submarine": 1.333}}, "6": {"S_ref": 174.55, "rel": {"jellyfish": 0.714, "ammonite": 0.458, "coelacanth": 0.516, "dunkle": 0.859, "plesio": 1.089, "helico": 1.146, "elasmo": 1.375, "mosa": 1.547}}, "7": {"S_ref": 260.0, "rel": {"jellyfish": 0.714, "spiritjelly": 0.577, "abyssal": 0.692, "giantsquid7": 1.192, "leviathan": 1.308, "bloop": 1.538}}},
     forms: [
       { form: 1, name: 'Tiny Fish',   gp: 0,   size: 10,  apex: 70,  dist: 280,  flight: 0.8, art: 'PLY_F1' },
       { form: 2, name: 'Medium Fish', gp: 60,  size: 18,  apex: 110, dist: 380,  flight: 0.9, art: 'PLY_F2' },
@@ -211,8 +217,8 @@
         { food: [['ammonite', 2], ['coelacanth', 2], ['dunkle', 2]], pred: [['elasmo', 1], ['plesio', 1]], obs: { ruin: 4, fall: 1, vent: 2, thermal: 1, lava: 1 }, coins: 10 },
         { food: [['ammonite', 2], ['coelacanth', 2], ['dunkle', 2]], pred: [['mosa', 1]], obs: { ruin: 3, fall: 2, vent: 3, lava: 2 }, coins: 12 }
       ] },
-    { n: 7, name: 'The Abyss', bg: 'bg_w7', sky: ['#3a1f6a', '#8a4fb0'], water: ['#4a2a9a', '#10062a'], floor: '#2a1a4a', glow: '#ff7ae8',
-      surf: [['wraith', 1], ['islet', 2], ['airliner', 3]],
+    { n: 7, name: 'The Abyss', bg: 'bg_w7', sky: ['#3a1f6a', '#8a4fb0'], water: ['#4a2a9a', '#10062a'], floor: '#2a1a4a', glow: '#ff7ae8', deep: true,
+      surf: [],                      // CR-4: no surface targets, events or jump in the deep ocean (the mythical flying targets are dropped)
       levels: [
         { food: [['spiritjelly', 4]], obs: { whirl: 1 }, dark: 300, coins: 7 },
         { food: [['spiritjelly', 3], ['abyssal', 3]], pred: [['leviathan', 1]], obs: { whirl: 1, struct: 2, shock: 1 }, dark: 300, coins: 8 },
@@ -226,6 +232,12 @@
   /* ---------------------------------------------------------------- Side-scroller mode (CR-2, spec v3 constants.BAL.SIDE)
      All values [DEFAULT - tune in playtest]. Classic keeps every BAL value above. */
   BAL.CONTROL_DEFAULT = 'side';
+  /* CR-4 v5.1 item 10 (spec constants.BAL.BOSSES): level 5 of every world is a boss level. Phases by level GP (180 / 300; Lionfish Pair: 240), every attack telegraphed >= 1.0 s, gaps >= 380 */
+  BAL.BOSSES = {
+    PHASE_GP_3: [180, 300], PHASE_GP_2: [240], TELEGRAPH_S: 1.0, GAP_MIN: 380, MAX_BR: 130, FINALE: { rel: 0.8, drift: 120, length_s: 10, coinsEaten: 50, coinsRetreat: 25 },
+    LIST: { 1: { id: 'grouper_boss', name: 'Great Grouper', phases: 3 }, 2: { id: 'lionfish', name: 'Lionfish Pair', phases: 2 }, 3: { id: 'anglerfish', name: 'Anglerfish', phases: 3 },
+            4: { id: 'orca', name: 'Orca Pod', phases: 3 }, 5: { id: 'submarine', name: 'Submarines and Giant Squid', phases: 3 }, 6: { id: 'mosa', name: 'Mosasaurus', phases: 3 }, 7: { id: 'bloop', name: 'The Bloop', phases: 3 } }
+  };
   BAL.SIDE = {
     forwardSpeed: [300, 320, 345, 370, 395, 420, 450, 480],        // px/s by form
     kickVy: [560, 590, 620, 650, 680, 710, 740, 770],              // px/s upward by form
@@ -233,7 +245,7 @@
     screenX: 0.30,                                                 // player at 30% of the view width
     jumpBL: 0.6, jumpCooldown: 0.5, surfaceSpeedMul: 0.6,
     despawnBehind: 600,
-    lanes: [430, 530, 630, 730, 830, 930, 1010], laneBand: { surface: [0, 1], mid: [2, 3], deep: [4, 5], floor: [6] },
+    lanes: [430, 530, 630, 730, 830, 930, 1010], lanesDeep: [150, 300, 450, 600, 750, 900, 1010], laneBand: { surface: [0, 1], mid: [2, 3], deep: [4, 5], floor: [6] },
     spawnAhead: 240, telegraphS: 1.0, maxClosing: 800, corridor: 300, predWindow: [2, 300, 1.5],
     ambushTrigger: 900, ambushWarnS: 0.8, ambushDash: [650, 700], tiltS: 0.3,
     zigzag: { segments: [2, 3], angle: [25, 35], segPx: [360, 520] }, oneTurn: { angle: 30, at: [0.4, 0.6] },
@@ -243,9 +255,20 @@
     peerSlow: { mul: 0.5, s: 0.4, shove: 120 }, hitInvuln: 1.5,
     seaweedFwd: 0.6, seaweedFall: 0.6, kelpFwd: 0.5, currentFwd: 120, strongCurrentFwd: 180, minFwd: 150,
     tumble: 250, vent: 200, fallRockTrigger: 700, mineFall: 200, sonarWarnS: 0.6,
-    boss: { gap: 300, tentWarnS: 0.8, phase3: 1.2, wallSpeed: 300 },
+    boss: { gap: 380, tentWarnS: 1.0, phase3: 1.2, wallSpeed: 300 },        // CR-4 v5.1: gaps >= 380 (corridor 300 + margin 80: the wall / ring / tentacle gaps pass the corridor check), telegraph >= 1.0 s
     maxOnScreenPrey: 1.0                                           // x BAL.foodMax of the level (cost-weighted)
   };
+  /* CR-4 v5.1 item 5 (R-OE-50): the difficulty table. D = ((world - 1) x 5 + (level - 1)) / 34 runs 0 .. 1 over the 35 levels */
+  BAL.SIDE.DIFFICULTY = { PRED: [12, 7.8], HAZ: [10, 5.8], SPEED: [0.9, 0.35], TIER: [0.9, 0.5], MAX_PRED: [1, 3], HAZ_TYPES: [2, 2], MAX_PREY: [10, 8] };
+  BAL.SIDE.DIFFICULTY_TABLE = {};
+  (function () {
+    var w, l, D, K = BAL.SIDE.DIFFICULTY, r2 = function (v) { return Math.round(v * 100) / 100; };
+    for (w = 1; w <= 7; w++) for (l = 1; l <= 5; l++) {
+      D = ((w - 1) * 5 + (l - 1)) / 34;
+      BAL.SIDE.DIFFICULTY_TABLE[w + '-' + l] = { D: r2(D), pred: r2(K.PRED[0] - K.PRED[1] * D), haz: r2(K.HAZ[0] - K.HAZ[1] * D), speed: r2(K.SPEED[0] + K.SPEED[1] * D), tier: r2(K.TIER[0] + K.TIER[1] * D),
+        maxpred: K.MAX_PRED[0] + Math.round(K.MAX_PRED[1] * D), haztypes: K.HAZ_TYPES[0] + Math.round(K.HAZ_TYPES[1] * D), maxprey: K.MAX_PREY[0] + Math.round(K.MAX_PREY[1] * D) };
+    }
+  })();
   /* movement of every creature in Side-scroller mode: pattern + leftward speed range px/s (doc section 5, tables per world).
      Patterns: STRAIGHT LINE FLOOR DIAGONAL ZIGZAG ONE_TURN VERT_BOUNCE CROSS AMBUSH_DASH GROUP STATIC. */
   OE.SIDE_MOVE = {
@@ -275,6 +298,11 @@
     bloop: { p: 'BOSS', v: [0, 0] }, test_peer: { p: 'STATIC', v: [0, 0] }
   };
 
+  // CR-4 v5.1 (R-OE-50): every roster has at least one predator and one hazard species from level 1 (the first-seen levels are lowered by the tier factor of the difficulty table)
+  (function () {
+    var DEF = { 1: ['grouper', 'snapcrab'], 2: ['lionfish', 'jellyfish'], 3: ['shark', 'jellyfish'], 4: ['dolphin', 'jellyfish'], 5: ['submarine', 'eel'], 6: ['plesio', 'jellyfish'], 7: ['leviathan', 'jellyfish'] };
+    WORLDS.forEach(function (w) { w.levels.forEach(function (l) { var d = DEF[w.n]; if (!l.pred || !l.pred.length) l.pred = [[d[0], 1]]; if (!l.haz || !l.haz.length) l.haz = [[d[1], 1]]; }); });
+  })();
   OE.BAL = BAL; OE.CREATURES = CR; OE.SURFACE = SF; OE.EVENTS = EV; OE.WORLDS = WORLDS;
   OE.STATIC_LIFE = 25; // seconds an island stays
 })(typeof window !== 'undefined' ? window : globalThis);

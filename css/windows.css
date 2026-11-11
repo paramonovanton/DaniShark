@@ -91,7 +91,7 @@
 .stage [data-layer="Fullscreen Button"], .stage [data-layer="Fullscreen Toggle"] { cursor: pointer; pointer-events: auto; }
 
 /* Evolution Light banner and the goal banner never take input (the arena keeps playing under them) */
-.stage .win-full[data-state="Light"], .stage .win-full[data-state="Light"] * { pointer-events: none; }
+.stage .win-full[data-state="Light"], .stage .win-full[data-state="Light"] *, .stage .win-full[data-state="LightKraken"], .stage .win-full[data-state="LightKraken"] * { pointer-events: none; }
 .stage .win-goal, .stage .win-goal * { pointer-events: none; }
 .stage .win-goal [data-layer="Banner"] { animation: slidedown .25s ease-out; }
 /* Bonus Timer Arc: js/ui.js sets --sweep (360deg = 60 s left) */
@@ -113,3 +113,7 @@ html.tier-mobile #stage, html.tier-lite #stage { box-shadow: none; }            
 html.tier-mobile .fx-vignette:not(.flash), html.tier-lite .fx-vignette:not(.flash) { display: none; }         /* the full-screen damage vignette only exists while it flashes */
 html.tier-lite .stage .card.pulse > [data-layer="Frame"] { animation: none; }
 html.tier-mobile .stage button, html.tier-lite .stage button { transition: none; }
+
+/* CR-4 v5.1: confetti of the Kraken celebration (T_Game_Evolution / LightKraken) */
+.stage .confetti-piece { position: absolute; top: -40px; width: 14px; height: 26px; border-radius: 3px; opacity: .95; animation: confetti 2.2s linear infinite; }
+@keyframes confetti { 0% { translate: 0 -40px; rotate: 0deg; } 100% { translate: 40px 1180px; rotate: 720deg; } }

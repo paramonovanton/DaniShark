@@ -55,7 +55,7 @@
   };
   // y for a species: its own spawn band ('surface' | 'mid' | 'deep' | 'floor'), default mostly mid
   P.bandPick = function (def) {
-    var B = BAL.bands, name = def.sband;
+    var B = this.bands, name = def.sband;
     if (!name) { var r = this.rng.next(); name = r < 0.7 ? 'mid' : (r < 0.85 ? 'surface' : 'deep'); }
     if (def.ai === 'bottom') return BAL.seabedY + 22;
     var b = B[name];
@@ -82,7 +82,7 @@
       if (amb >= 3) return;
       var home = this.homeSpot(); this.spawnCreature(id, home.x, home.y, {}); return;
     }
-    if (initial) { pos = this.randomFar(350, [BAL.bands.surface[0], BAL.bands.deep[1]]); pos[1] = this.bandPick(def); }
+    if (initial) { pos = this.randomFar(350, [this.bands.surface[0], this.bands.deep[1]]); pos[1] = this.bandPick(def); }
     else { var ex = this.edgeSpawn(BAL.spawnNear); if (ex === null) return; pos = [ex, this.bandPick(def)]; }
     var hides = !!ld.hide && id === 'clownfish';
     if (def.ai === 'school') {
@@ -109,7 +109,7 @@
   };
   // persistent predators / hazards of a level: at least spawnFar (930 px) from the player
   P.spawnSpecial = function (id, count, boost) {
-    var def = CR[id], sz = boost ? Math.max(this.rosterSize(id, CR[id]), boost * this.S) : undefined, i, pos, yr = [BAL.bands.mid[0], BAL.bands.deep[1]], gr = null, self = this;
+    var def = CR[id], sz = boost ? Math.max(this.rosterSize(id, CR[id]), boost * this.S) : undefined, i, pos, yr = [this.bands.mid[0], this.bands.deep[1]], gr = null, self = this;
     for (i = 0; i < count; i++) {
       pos = this.randomFar(BAL.spawnFar, yr);
       if (def.ai === 'ambush') { var h = this.homeSpot(); pos = [h.x, h.y]; }
@@ -143,8 +143,8 @@
       case 'rock': r = rng.range(40, 70); this.obs.push({ id: this.nextId++, kind: 'rock', shape: 'c', x: clamp(bx + 90, 90, W - 90), y: FLOOR - r * 0.45, r: r, solid: true }); break;
       case 'anemone': this.obs.push({ id: this.nextId++, kind: 'anemone', shape: 'c', x: clamp(bx + 40, 60, W - 60), y: FLOOR - 20, r: 36, haz: true, name: 'Sea anemone' }); break;
       case 'crevice': this.obs.push({ id: this.nextId++, kind: 'crevice', shape: 'c', x: clamp(bx - 70, 80, W - 80), y: FLOOR - rng.range(30, 160), r: 30 }); break;
-      case 'brock': this.obs.push({ id: this.nextId++, kind: 'brock', shape: 'c', x: clamp(bx + 50, 90, W - 90), y: FLOOR - rng.range(60, 140), r: 48, solid: true, breakable: 100, coins: rng.int(3, 5) }); break;
-      case 'ruin': h = rng.range(180, 360); this.obs.push({ id: this.nextId++, kind: 'ruin', shape: 'r', x: bx, y: FLOOR - h / 2, w: 80, h: h, solid: true, breakable: 150, coins: 3 }); break;
+      case 'brock': this.obs.push({ id: this.nextId++, kind: 'brock', shape: 'c', x: clamp(bx + 50, 90, W - 90), y: FLOOR - rng.range(60, 140), r: 48, solid: true, breakable: 24, coins: rng.int(3, 5) }); break;
+      case 'ruin': h = rng.range(180, 360); this.obs.push({ id: this.nextId++, kind: 'ruin', shape: 'r', x: bx, y: FLOOR - h / 2, w: 80, h: h, solid: true, breakable: 29, coins: 3 }); break;
       case 'struct': h = rng.range(200, 340); this.obs.push({ id: this.nextId++, kind: 'struct', shape: 'r', x: bx, y: rng.range(this.waterY + 120 + h / 2, FLOOR - h / 2 - 20), w: rng.range(60, 90), h: h, solid: true, vx: (rng.chance(0.5) ? 1 : -1) * 55 }); break;
       case 'seaweed': this.zones.push({ id: this.nextId++, kind: 'seaweed', x: bx, y: FLOOR - 150, w: 170, h: 300, mul: 0.6 }); break;
       case 'kelp': this.zones.push({ id: this.nextId++, kind: 'kelp', x: clamp(bx + 60, 100, W - 100), y: FLOOR - 190, w: 210, h: 380, mul: 0.4, stealth: true }); break;
@@ -364,6 +364,7 @@
 
   /* ================================================================ spawn logic */
   P.spawnLogic = function (dt) {
+    if (this.noSpawn) return;
     var ld = this.ldef, i, e;
     // food
     this.foodT -= dt;
@@ -378,11 +379,11 @@
       this.thrT2 = (this.thrT2 === undefined ? 1 : this.thrT2) - dt;
       if (this.thrT2 <= 0 && !this.dying) {
         this.thrT2 = 0.5;
-        var liveT = 0, liveN = 0;
+        var liveT = 0, liveN = 0, liveP = 0;
         for (qq = 0; qq < this.creatures.length; qq++) { var tc = this.creatures[qq]; if (tc.dead || tc.faded || tc.def.k === 'pas' || tc.role === 'passive') continue;
           if (tc.persist && tc.role !== 'predator' && tc.role !== 'hazard' && Math.abs(tc.x - this.player.x) > this.viewW * 0.6) { tc.dead = true; continue; }          // a threat the player has outgrown and that is out of sight is retired (the next one is sized for the current form)
-          liveN++; if (tc.role === 'predator' || tc.role === 'hazard') liveT++; }
-        if ((liveT + 1) / (liveN + 1) <= BAL.GROWTH.CLASSIC_THREAT_BAND[1] - 0.07 && liveT < BAL.GROWTH.CLASSIC_THREAT_MAX) { this.spawnSpecial(this.pickThreat(true), 1); this.ev.threat++; }
+          liveN++; if (tc.role === 'predator') liveP++; if (tc.role === 'predator' || tc.role === 'hazard') liveT++; }
+        if ((liveT + 1) / (liveN + 1) <= BAL.GROWTH.CLASSIC_THREAT_BAND[1] - 0.07 && liveT < BAL.GROWTH.CLASSIC_THREAT_MAX) { this.spawnSpecial(liveP >= this.diff.maxpred && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true), 1); this.ev.threat++;       /* CR-4 v5.1: at most max-predators predators, then hazards */ }
         else if (liveT > 1 && liveT / liveN > BAL.GROWTH.CLASSIC_THREAT_BAND[1] - 0.03) {      // too many: recycle the farthest threat that is outside the view
           var far = null, fd = 0, px = this.player.x;
           for (qq = 0; qq < this.creatures.length; qq++) { var fc = this.creatures[qq]; if (!fc.dead && !fc.faded && (fc.role === 'predator' || fc.role === 'hazard') && fc.def.k !== 'pas' && Math.abs(fc.x - px) > this.viewW * 0.6 && Math.abs(fc.x - px) > fd) { far = fc; fd = Math.abs(fc.x - px); } }
@@ -465,6 +466,7 @@
   // CR-3 (R-OE-41): the pool follows the CURRENT form in any world: 50 % an eligible item of the world list, 25 % a teaser one tier above (Too Big Marker),
   // 25 % a global-catalog target of tier form-1 or form (world-flavoured items first); at least one eligible target every 20 s (forceEligible)
   P.spawnSurfaceNext = function (forceEligible) {
+    if (this.deep) return;                                                              // CR-4: no surface targets in the deep ocean
     var list = this.surfList(), form = this.form, pool = BAL.GROWTH.SURFACE_POOL, k, cand, pick = null, rng = this.rng, active = 0, i;
     this.surfCount++;
     for (i = 0; i < this.surface.length; i++) if (!this.surface[i].dead && !this.surface[i].ev) active++;

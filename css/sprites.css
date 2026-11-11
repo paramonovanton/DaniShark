@@ -68,8 +68,6 @@
   --spr-SPR_UI_Icn_Cmn_Fullscreen: url('ui/generated/sprites/Cmn/Icons/Navigation/SPR_UI_Icn_Cmn_Fullscreen.png');
   --spr-SPR_UI_Icn_Cmn_FullscreenExit: url('ui/generated/sprites/Cmn/Icons/Navigation/SPR_UI_Icn_Cmn_FullscreenExit.png');
   --spr-SPR_UI_Icn_Cmn_GoalFlag: url('ui/generated/sprites/Cmn/Icons/HUD/SPR_UI_Icn_Cmn_GoalFlag.png');
-  --spr-SPR_UI_Cmt_Game_TimerRing: url('ui/generated/sprites/Game/Panels/Timer/SPR_UI_Cmt_Game_TimerRing.png');
-  --spr-SPR_UI_Cmt_Game_TimerArc: url('ui/generated/sprites/Game/Panels/Timer/SPR_UI_Cmt_Game_TimerArc.png');
 }
 
 /* assets/ui art replaces the Figma stand-ins (same art; JPG backgrounds are 10x smaller) */

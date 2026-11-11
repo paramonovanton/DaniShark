@@ -23,7 +23,7 @@
     this.banner = null; this.hint = null; this.damagedT = 0;
     this.noticePending = !!this.provider.blocked;
     this.visibility = 'visible';
-    this.viewW = BAL.DESIGN_W; this.rotate = false;
+    this.viewW = BAL.DESIGN_W / BAL.ZOOM; this.rotate = false;
     this.floatQueue = [];
     this.tip = 'oe_loading_tip_' + (1 + Math.floor(Math.random() * 3));
   }
@@ -71,14 +71,14 @@
       case 'fail': return { screen: 'T_Game_Fail', state: 'Default' };
       case 'worldcomplete': return { screen: 'T_Game_WorldComplete', state: r.result.firstWorldClear ? (r.result.finalWorld ? 'FinalWorld' : 'Default') : 'Replay' };
       default:
-        if (r.goalT > 0) return { screen: 'T_Game_GoalReached', state: 'Default' };          // CR-3: banners over the running game (the arena is not frozen)
-        if (r.evoLightT > 0) return { screen: 'T_Game_Evolution', state: 'Light' };
+        if (r.krakenT > 0) return { screen: 'T_Game_Evolution', state: 'LightKraken' };       // CR-4 v5.1: the Kraken celebration (2.0 s, 1.2 s on a boss level)
+        if (r.evoLightT > 0) return { screen: 'T_Game_Evolution', state: 'Light' };       // CR-3: non-blocking banner over the running game
         return { screen: 'T_Game_HUD', state: this.hudState() };
     }
   };
   P.hudState = function () {
     var s = this.sim; if (!s) return 'Default';
-    if (this.run && this.run.bonus) return 'BonusPhase';                          // CR-3: Finish Button + Bonus Timer for the whole bonus phase
+    if (s.finale) return 'BossFinale';                                              // CR-4 v5.1 (R-OE-53): the boss is stunned and edible
     if (s.player.airborne) return 'Airborne';
     if (this.damagedT > 0) return 'Damaged';
     if (s.jumpEligible()) return 'JumpReady';
@@ -176,11 +176,11 @@
     var replay = M.isReplay(this.save, world, level);                                   // already completed before (tracking only: every level plays the same)
     this.mode = 'game'; this.busy = false; this.banner = null; this.damagedT = 0; this.floatQueue = []; this.ptrDown = false;
     this.sim = new OE.Sim({ world: world, level: level, viewW: this.viewW, controlMode: this.save.settings.controlMode, seed: this.seedValue === null ? (Date.now() & 0xffffff) : this.seedValue });
-    this.run = { world: world, level: level, replay: replay, phase: opts.skipBanner ? 'play' : 'start', timer: BAL.levelStartS, result: null, pauseState: 'Default', winDelay: 0, evoT: 0, evo: null, hintDone: {}, lastPhaseBeforePause: 'play', goalT: 0, evoLightT: 0, evoLightTo: 0, bonus: false, bonusT: 0, endReason: null, goalFormAtEnd: 0 };
+    this.run = { world: world, level: level, replay: replay, phase: opts.skipBanner ? 'play' : 'start', timer: BAL.levelStartS, result: null, pauseState: 'Default', winDelay: 0, evoT: 0, evo: null, hintDone: {}, lastPhaseBeforePause: 'play', evoLightT: 0, evoLightTo: 0, krakenT: 0, krakenPending: false, krakenHearts: 3, bossEaten: false, endReason: null };
     this.acc = 0;
     if (this.assets) { var lids = this.assets.levelIds(world, 1, level); if (this.assets.retain) this.assets.retain(lids); this.assets.preload(lids); }   // world sprites + current/next form; everything else is released (BUG-U4); the banner waits for them (see update)
     this.initHint();
-    this.track('Level_Start', { lvl: this.lvlNumber(world, level), world: world, level_in_world: level, goal_form: this.sim.goalForm, replay: replay, control_mode: this.sim.controlMode });
+    this.track('Level_Start', { lvl: this.lvlNumber(world, level), world: world, level_in_world: level, replay: replay, control_mode: this.sim.controlMode });
     this.changed();
   };
   P.finishStart = function () {
@@ -305,14 +305,8 @@
     if (this.assets) this.assets.preload(this.assets.formIds(this.sim.form + 1));
     this.changed();
   };
-  // CR-3: the Finish Button (bonus phase) ends the level with the stars earned so far
-  P.finishBonus = function () {
-    var r = this.run;
-    if (this.mode !== 'game' || !r || r.phase !== 'play' || !r.bonus) return false;
-    this.requestEnd('finish'); return true;
-  };
-  // the level ends when the player is in the water (a jump finishes first); Game.update() then calls sim.finish()
-  P.requestEnd = function (reason) { var r = this.run; if (reason === 'form' && this.noAutoEnd) return; if (!r.endReason) r.endReason = reason; };
+  // CR-4 v5.1: the level ends at the Kraken (celebration, then LevelComplete / the boss finale); noAutoEnd(true) (QA) stops that end
+  P.requestEnd = function (reason) { var r = this.run; if (!r.endReason) r.endReason = reason; };
   // Classic: a tap or swipe up jumps when Jump Ready. Side-scroller: the press itself is the action (see tap()).
   P.jump = function (dirHint) { if (this.mode === 'game' && this.run.phase === 'play' && !this.sim.side) return this.sim.jump(dirHint); return false; };
   // Side-scroller: tap = kick up, or the surface jump near the waterline (mouse click, Space and Up arrow too)
@@ -393,17 +387,22 @@
         // CR-3 (R-OE-39): +1 heart and 1.5 s invulnerability were applied by the sim. The FIRST evolution ever = blocking popup (arena frozen);
         // every other = the non-blocking Light banner; the evolution that reaches the goal form shows the goal banner instead (TR-OE-60)
         if (this.assets) { var eids = this.assets.levelIds(r.world, e.to, r.level); if (this.assets.retain) this.assets.retain(eids); this.assets.preload(eids); }     // the forms below the new one are released
-        var reachesGoal = e.from < s.goalForm && e.to >= s.goalForm, light = !(sv.tutorial.evoIntroSeen === false && !reachesGoal);
+        var toKraken = e.to >= 8, light = !(sv.tutorial.evoIntroSeen === false && !toKraken);
         this.track('Evolved', { form_from: e.from, form_to: e.to, world: r.world, level_in_world: r.level, level_time_s: Math.round(s.t), light: light });
         if (!light) { r.phase = 'evolution'; r.evoT = BAL.evoAutoS; r.evo = { from: e.from, to: e.to }; s.halted = true; sv.tutorial.evoIntroSeen = true; this.commit(); }
-        else if (!reachesGoal) { r.evoLightT = BAL.GROWTH.EVO_LIGHT_S; r.evoLightTo = e.to; r.evoLightFrom = e.from; }
-        if (r.bonus || s.goalReached) { if (e.to >= Math.min(8, s.goalForm + 2)) this.requestEnd('form'); }
+        else if (!toKraken) { r.evoLightT = BAL.GROWTH.EVO_LIGHT_S; r.evoLightTo = e.to; r.evoLightFrom = e.from; }
         break;
-      case 'goal':
-        r.goalT = BAL.GROWTH.GOAL_BANNER_S; r.evoLightT = 0;
-        this.track('GoalReached', { world: r.world, level_in_world: r.level, goal_form: s.goalForm, duration_s: Math.round(s.t) });
-        if (e.form >= Math.min(8, s.goalForm + 2)) this.requestEnd('form');
+      case 'kraken':
+        // CR-4 v5.1: every level ends at the Kraken: the celebration (the Light banner Kraken variant, 2.0 s; 1.2 s on a boss level), then LevelComplete / the boss finale.
+        // A jump in the air lands first. Stars = hearts left now.
+        r.krakenHearts = e.hearts; r.evoLightT = 0; r.evoLightTo = 8; r.evoLightFrom = 7;
+        if (!this.noAutoEnd) r.krakenPending = true;
         break;
+      case 'finaleEnd':
+        r.bossEaten = !!e.eaten; this.track('BossFinale', { boss_id: e.boss, world: r.world, eaten: !!e.eaten, coins: r.world * (e.eaten ? 50 : 25) });
+        r.endReason = 'finale'; this.finishWin();
+        break;
+      case 'bossPhase': this.track('BossPhaseChanged', { boss_id: e.boss, phase: e.phase, world: r.world, form: s.form, hearts_left: s.hearts }); break;
       case 'win': r.winDelay = 0.6; break;
       case 'fail': this.onFail(e); break;
       case 'eventStart':
@@ -423,23 +422,23 @@
   P.finishWin = function () {
     var r = this.run, s = this.sim;
     if (r.result) return;
-    var out = M.applyLevelWin(this.save, { world: r.world, level: r.level, formAtEnd: s.maxForm, coinsCollected: s.coins });
+    var out = M.applyLevelWin(this.save, { world: r.world, level: r.level, hearts: r.krakenHearts, bossEaten: r.bossEaten, coinsCollected: s.coins });
     this.save = out.save;
-    r.result = out.res; r.result.duration = s.t; r.result.reason = r.endReason || 'hearts'; r.result.evolutions = s.evolutionsThisLevel;
+    r.result = out.res; r.result.duration = s.t; r.result.reason = r.endReason || 'kraken';
     this.commit();
     var res = out.res;
-    this.track('Level_Success', { control_mode: s.controlMode, lvl: this.lvlNumber(r.world, r.level), world: r.world, level_in_world: r.level, stars: res.stars, duration_s: Math.round(s.t), form_reached: s.maxForm, goal_form: s.goalForm, evolutions: s.evolutionsThisLevel, coins_gain: res.coinsRow, replay: res.replay });
+    this.track('Level_Success', { control_mode: s.controlMode, lvl: this.lvlNumber(r.world, r.level), world: r.world, level_in_world: r.level, stars: res.stars, hearts_left: res.heartsLeft, duration_s: Math.round(s.t), coins_gain: res.coinsRow, replay: res.replay });
     if (r.level === 5) {
       r.phase = 'worldcomplete';
       this.track('WorldCompleted', { world: r.world, first_time: res.firstWorldClear, stars: res.stars, coins_gain: res.coinsRow });
     } else r.phase = 'complete';
-    r.bonus = false; r.goalT = 0; r.evoLightT = 0; this.bonusOverride = null;
+    r.evoLightT = 0; r.krakenT = 0; r.krakenPending = false;
     this.busy = false;
     this.changed();
   };
   P.onFail = function (e) {
     var r = this.run, s = this.sim;
-    if (s.goalReached) { r.endReason = r.endReason || 'hearts'; this.finishWin(); return; }        // CR-3 (R-OE-19): hearts 0 after the goal form completes the level
+    if (s.goalReached) { r.endReason = r.endReason || 'kraken'; this.finishWin(); return; }        // hearts 0 at the very moment of the Kraken still completes the level
     r.phase = 'fail'; r.cause = e.cause || s.cause || { name: '?', kind: 'hazard', id: '?' };
     this.save.stats.levelsLost += 1;
     this.commit();
@@ -482,10 +481,19 @@
         if (r.evoT <= 0) this.evolutionContinue();
         return;
       case 'play':
-        if (r.goalT > 0) { r.goalT -= dt; if (r.goalT <= 0) { r.goalT = 0; r.bonus = true; r.bonusT = this.bonusOverride !== undefined && this.bonusOverride !== null ? this.bonusOverride : BAL.GROWTH.BONUS_S; this.bonusOverride = null; this.changed();   /* QA setBonusTimer before the bonus starts */ } }
-        else if (r.bonus && r.bonusT > 0) { r.bonusT -= dt; if (r.bonusT <= 0) { r.bonusT = 0; this.requestEnd('timer'); } }
         if (r.evoLightT > 0) { r.evoLightT -= dt; if (r.evoLightT <= 0) { r.evoLightT = 0; this.changed(); } }
-        if (r.endReason && !s.ended && !s.dying && !s.player.airborne) s.finish();          // the level ends in the water: a jump lands first
+        // CR-4 v5.1: the Kraken celebration starts when the shark is in the water (a jump lands first); the sim is frozen and invulnerable meanwhile
+        if (r.krakenPending && !s.dying && !s.player.airborne) { r.krakenPending = false; r.krakenT = r.level === 5 ? BAL.GROWTH.KRAKEN_BANNER_BOSS_S : BAL.GROWTH.KRAKEN_CELEBRATION_S; s.player.invuln = Math.max(s.player.invuln, 99); s.halted = true; this.changed(); }
+        if (r.krakenT > 0) {
+          r.krakenT -= dt;
+          if (r.krakenT <= 0) {
+            r.krakenT = 0;
+            if (r.level === 5 && s.startFinale) { s.halted = false; s.startFinale(); this.changed(); }     // the boss finale: the boss is stunned and edible (R-OE-53)
+            else { r.endReason = 'kraken'; this.finishWin(); return; }
+          }
+          return;
+        }
+        if (r.endReason && !s.ended && !s.dying && !s.player.airborne && r.endReason !== 'kraken' && r.endReason !== 'finale') s.finish();
         this.acc += dt;
         var n = 0;
         while (this.acc >= STEP && n < 12) {
@@ -509,8 +517,8 @@
   P.qaState = function () {
     var t = this.top(), s = this.sim, r = this.run, sv = this.save, out;
     out = {
-      screen: t.screen, state: t.state, camera: { x: 0 }, view: { w: this.viewW, h: BAL.VIEW_H }, world: null, level: null, goalForm: null,
-      levelGP: null, formProgress: 0, evolutionsThisLevel: 0, starsNow: 0, bonus: { active: false, secondsLeft: 0 },
+      screen: t.screen, state: t.state, camera: { x: 0, y: 0 }, zoom: BAL.ZOOM, view: { w: this.viewW, h: BAL.VIEW_H / BAL.ZOOM }, skyHeight: 0, waterline: null, blockers: [], markers: [], audio: { voiceLog: OE.Audio ? OE.Audio.voiceLog.slice() : [] }, world: null, level: null, goalForm: 8, boss: null,
+      levelGP: null, formProgress: 0, evolutionsThisLevel: 0, starsNow: 0,
       bestForm: sv.stats.bestForm, form: 1, size: 10, hearts: null, coins: sv.coins, background: null, bossPhase: 0,
       jump: { eligible: false, airborne: false, cooldown: 0 }, player: null, creatures: [], surfaceTargets: [],
       hint: this.hint, banner: this.banner ? this.banner.id : null, mode: this.mode,
@@ -520,12 +528,14 @@
     if (s) {
       var p = s.player, i, img = this.assets && this.assets.get ? this.assets.get('PLY_F' + s.form) : null, nat = img && img.width ? img.width : 512;
       out.world = r.world; out.level = r.level; out.goalForm = s.goalForm; out.levelGP = s.levelGP; out.formProgress = M.formProgress(s.levelGP);
-      out.evolutionsThisLevel = s.evolutionsThisLevel; out.starsNow = s.goalReached ? M.starsFor(s.maxForm, s.goalForm) : 0;
-      out.bonus = { active: !!r.bonus, secondsLeft: r.bonus ? Math.max(0, r.bonusT) : 0 };
+      out.evolutionsThisLevel = s.evolutionsThisLevel; out.starsNow = M.starsFor(s.goalReached ? r.krakenHearts : s.hearts);
+      out.boss = s.bossState ? s.bossState() : null;
       out.form = s.form; out.size = s.S; out.hearts = s.hearts; out.background = WORLDS[r.world - 1].bg;
       out.bossPhase = s.phaseNow(); out.jump = s.jumpState();
-      out.player = { x: p.x, y: p.y, vx: p.vx, vy: p.vy, len: p.len, bodyR: p.r, mouthR: BAL.BODY.mouthR * p.len, spriteScale: p.len / nat, spriteNaturalLen: nat };
-      out.camera = { x: s.cam.x }; out.controlMode = s.controlMode; out.forwardSpeed = s.side ? s.fwd : 0; if (s.side) out.threats = s.threatMarkers();
+      out.player = { x: p.x, y: p.y, vx: p.vx, vy: p.vy, len: p.len, bodyR: p.r, mouthR: BAL.BODY.mouthR * p.len, spriteScale: p.len / nat, spriteNaturalLen: nat, screenLen: p.len * BAL.ZOOM };
+      out.camera = { x: s.cam.x, y: s.cam.y }; out.zoom = BAL.ZOOM; out.view = { w: s.viewW, h: s.viewH() }; out.skyHeight = s.deep ? 0 : Math.max(0, s.scrY(s.waterY)); out.waterline = s.deep ? null : s.scrY(s.waterY);
+      for (i = 0; i < s.objs.length; i++) { var bo = s.objs[i]; if (bo.kind === 'wall' || bo.kind === 'swall' || bo.kind === 'column' || bo.kind === 'mine') out.blockers.push({ id: bo.id, kind: bo.kind, x: bo.x, y: bo.gapY !== undefined ? bo.gapY : bo.y, gapH: bo.gapH || 0, w: bo.w || 0, state: bo.st || '' }); }
+      out.controlMode = s.controlMode; out.forwardSpeed = s.side ? s.fwd : 0; if (s.side) { out.threats = s.threatMarkers(); out.markers = out.threats.map(function (m) { var sy = s.scrY(m.y); return { id: m.id, kind: m.kind, y: m.y, screenY: Math.max(190, Math.min(1000, sy)), edge: sy < 190 ? 'up' : (sy > 1000 ? 'down' : null) }; }); }
       out.coinsCollected = s.coins; out.replay = r.replay; out.waterY = s.waterY; out.invuln = p.invuln;
       for (i = 0; i < s.creatures.length; i++) { var c = s.creatures[i]; out.creatures.push({ id: c.id, type: c.type, x: c.x, y: c.y, vx: c.vx, vy: c.vy, pattern: c.mv ? c.mv.pat : (s.side ? '' : 'CLASSIC'), size: c.size, len: c.len, role: c.role, state: c.state, hidden: c.hidden }); }
       for (i = 0; i < s.surface.length; i++) { var q = s.surface[i]; out.surfaceTargets.push({ id: q.id, type: q.type, tier: q.tier, x: q.x, y: q.y, eligible: q.tier <= s.form, bites: q.biteN }); }

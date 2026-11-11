@@ -7,9 +7,10 @@
 
   var PLAN = {
     AppOpen: [],
-    Level_Start: ['lvl', 'world', 'level_in_world', 'goal_form', 'replay', 'control_mode'],
-    Level_Success: ['lvl', 'world', 'level_in_world', 'stars', 'duration_s', 'form_reached', 'goal_form', 'evolutions', 'coins_gain', 'replay', 'control_mode'],
-    GoalReached: ['world', 'level_in_world', 'goal_form', 'duration_s'],
+    Level_Start: ['lvl', 'world', 'level_in_world', 'replay', 'control_mode'],
+    Level_Success: ['lvl', 'world', 'level_in_world', 'stars', 'hearts_left', 'duration_s', 'coins_gain', 'replay', 'control_mode'],          // CR-4 v5.1: stars = hearts left at the Kraken
+    BossPhaseChanged: ['boss_id', 'phase', 'world', 'form', 'hearts_left'],
+    BossFinale: ['boss_id', 'world', 'eaten', 'coins'],
     Level_Failure: ['lvl', 'world', 'level_in_world', 'cause', 'level_gp_pct', 'duration_s', 'form_reached', 'control_mode'],
     LevelQuit: ['world', 'level_in_world', 'level_gp_pct', 'hearts_left'],
     LevelRestart: ['world', 'level_in_world'],

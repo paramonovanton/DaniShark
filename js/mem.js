@@ -58,6 +58,8 @@
       }
       var cvs = doc.querySelectorAll('canvas');
       for (i = 0; i < cvs.length; i++) { var b = cvs[i].width * cvs[i].height * 4 / MB; cv += b; if (b > 0.5) rows.push({ kind: 'canvas', name: cvs[i].id || 'canvas', w: cvs[i].width, h: cvs[i].height, mb: b }); }
+      var TI = OE.Assets && OE.Assets.tints || {}, tk;                                     // CR-4: the tinted copies of decor art (offscreen canvases) count as canvas memory
+      for (tk in TI) { var tb = TI[tk].width * TI[tk].height * 4 / MB; cv += tb; rows.push({ kind: 'canvas', name: tk, w: TI[tk].width, h: TI[tk].height, mb: tb }); }
       rows.forEach(function (r) { if (r.kind === 'js') js += r.mb; else if (r.kind !== 'canvas') css += r.mb; });
       rows.sort(function (a, b2) { return b2.mb - a.mb; });
       return { tier: OE.Browser && OE.Browser.tier, dpr: OE.Browser && OE.Browser.dprCap ? OE.Browser.dprCap() : g.devicePixelRatio, jsImagesMB: +js.toFixed(1), cssImagesMB: +css.toFixed(1), canvasMB: +cv.toFixed(1), totalMB: +(js + css + cv).toFixed(1),

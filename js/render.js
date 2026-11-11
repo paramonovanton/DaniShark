@@ -12,7 +12,7 @@
   function Render(canvas, game) {
     this.cv = canvas; this.ctx = canvas.getContext('2d'); this.game = game;
     this.k = 1; this.t = 0; this.parts = []; this.texts = []; this.shake = 0; this.shakeT = 0; this.flash = 0;
-    this.viewW = BAL.DESIGN_W; this.cam = 0;
+    this.viewW = BAL.DESIGN_W / BAL.ZOOM; this.cam = 0; this.camY = 0;
     this.clouds = []; for (var i = 0; i < 9; i++) this.clouds.push({ x: Math.random() * 4000, y: 40 + Math.random() * 190, s: 0.45 + Math.random() * 0.5, v: 8 + Math.random() * 14 });
     this.motes = []; for (i = 0; i < 28; i++) this.motes.push({ x: Math.random() * 2520, y: Math.random() * H, r: 1.5 + Math.random() * 3, v: 6 + Math.random() * 14, p: Math.random() * 6 });
     this.bubT = 0;
@@ -23,8 +23,10 @@
   var P = Render.prototype;
 
   P.resize = function (cssW, dpr, viewW) {
-    this.viewW = viewW || BAL.DESIGN_W;
-    this.cv.width = Math.round(cssW * dpr); this.cv.height = Math.round(cssW * BAL.VIEW_H / this.viewW * dpr); this.k = this.cv.width / this.viewW;
+    // CR-4 (R-OE-49): viewW = the logical width of the stage; the arena shows viewW / ZOOM world units (k = canvas px per world unit already contains the zoom)
+    var logicW = viewW || BAL.DESIGN_W;
+    this.viewW = logicW / BAL.ZOOM;
+    this.cv.width = Math.round(cssW * dpr); this.cv.height = Math.round(cssW * BAL.VIEW_H / logicW * dpr); this.k = this.cv.width / this.viewW;
   };
   P.addPart = function (o) { this.parts.push(o); if (this.parts.length > 500) this.parts.shift(); };
   P.burst = function (x, y, n, color, speed, life, r) {
@@ -94,11 +96,14 @@
     var wy = sim.waterY, i, VW = this.viewW, cam = this.cam, H0 = BAL.VIEW_H;
     var gr = ctx.createLinearGradient(0, wy, 0, H0);
     gr.addColorStop(0, wd.water[0]); gr.addColorStop(1, wd.water[1]);
+    if (sim.deep) { ctx.fillStyle = gr; ctx.fillRect(0, 0, VW, H0); }                  // CR-4: no sky, no waterline: water to the top edge
+    else {
     ctx.beginPath(); ctx.moveTo(0, H0); ctx.lineTo(0, this.waveY(cam, sim));
     for (i = 0; i <= VW; i += 24) ctx.lineTo(i, this.waveY(i + cam, sim));
     ctx.lineTo(VW, H0); ctx.closePath(); ctx.fillStyle = gr; ctx.fill();
+    }
     // light shafts (parallax 0.5)
-    ctx.save(); ctx.globalAlpha = wd.n === 3 || wd.n === 5 || wd.n === 7 ? 0.08 : 0.16;
+    ctx.save(); ctx.globalAlpha = sim.deep ? 0 : (wd.n === 3 || wd.n === 5 || wd.n === 7 ? 0.08 : 0.16);
     for (i = -1; i < VW / 260 + 2; i++) {
       var x = wrap(i * 260 - cam * 0.5, VW + 520) - 260 + Math.sin(this.t * 0.3 + i) * 30, lg = ctx.createLinearGradient(0, wy, 0, wy + 650);
       lg.addColorStop(0, '#fff'); lg.addColorStop(1, 'rgba(255,255,255,0)');
@@ -107,12 +112,13 @@
     ctx.restore();
     // seabed: floor band 990-1080 (world x, parallax 1.0)
     var fy = BAL.seabedY - 6;
+    if (this.drawSeabedArt(ctx, wd)) { if (!sim.deep) this.drawWaterLine(ctx, sim); return; }      // CR-4: midground + seabed strips (the procedural band below is the fallback)
     ctx.beginPath(); ctx.moveTo(0, H0); ctx.lineTo(0, fy + 6);
     for (i = 0; i <= VW; i += 32) ctx.lineTo(i, fy + Math.sin((i + cam) * 0.011 + wd.n) * 9);
     ctx.lineTo(VW, H0); ctx.closePath(); ctx.fillStyle = wd.floor; ctx.fill();
     ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(0, fy + 40, VW, H0);
     this.drawDecor(ctx, wd, fy);
-    this.drawWaterLine(ctx, sim);
+    if (!sim.deep) this.drawWaterLine(ctx, sim);
   };
   // foam line on the (waving) waterline, plus the Jump Ready glow (procedural FX: waterline glow)
   P.drawWaterLine = function (ctx, sim) {
@@ -122,15 +128,17 @@
     if (this.glowLine > 0) { ctx.lineWidth = 14; ctx.strokeStyle = 'rgba(255,255,140,' + (0.35 + 0.25 * Math.sin(this.t * 8)) + ')'; ctx.stroke(); }
   };
   // far background layer (BG_Wn_Back, 2560x1080): scaled to the view height, tiled horizontally (never stretched), parallax 0.33
-  P.drawFarBg = function (ctx, img, camX) {
-    var tiles = OE.util.farTiles(camX, img.width, img.height, this.viewW, BAL.VIEW_H, 0.33), i;
+  // deep = The Abyss (CR-4): the art has a night sky and the waterline in its upper third; only the underwater part is drawn (cropped, not stretched), so the water fills the whole view
+  P.drawFarBg = function (ctx, img, camX, deep) {
+    var cs = deep ? Math.round(img.height * 0.33) : 0, sh = img.height - cs, tiles = OE.util.farTiles(camX, img.width, sh, this.viewW, BAL.VIEW_H, 0.33), i;
     for (i = 0; i < tiles.length; i++) {
       var t = tiles[i];
-      if (!t.flip) { ctx.drawImage(img, t.x, 0, t.w, BAL.VIEW_H); continue; }
-      ctx.save(); ctx.translate(t.x + t.w, 0); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0, t.w, BAL.VIEW_H); ctx.restore();
+      if (!t.flip) { ctx.drawImage(img, 0, cs, img.width, sh, t.x, 0, t.w, BAL.VIEW_H); continue; }
+      ctx.save(); ctx.translate(t.x + t.w, 0); ctx.scale(-1, 1); ctx.drawImage(img, 0, cs, img.width, sh, 0, 0, t.w, BAL.VIEW_H); ctx.restore();
     }
   };
   P.drawDecor = function (ctx, wd, fy) {
+    if (this.sp('MID_W' + wd.n)) return;                                                // CR-4: the midground strip replaces the procedural silhouettes (drawSeabedArt)
     var n = wd.n, t = this.t, VW = this.viewW, off = this.cam * 0.66, k, x, step;
     function range(st) { return [Math.floor(off / st) - 1, Math.ceil((off + VW) / st) + 1]; }
     var r;
@@ -168,9 +176,13 @@
         for (k = 0; k < 6; k++) { var xx = z.x - z.w / 2 + 30 + k * (z.w - 60) / 5, off2 = (t * 120 + k * 90) % z.h; ctx.beginPath(); ctx.moveTo(xx, z.y + z.h / 2 - off2); ctx.lineTo(xx, z.y + z.h / 2 - off2 - 40); ctx.stroke(); }
         ctx.restore();
       } else if (z.kind === 'vent') {
-        ctx.fillStyle = '#3a2a22'; ctx.beginPath(); ctx.moveTo(z.x - 60, BAL.seabedY); ctx.lineTo(z.x - 25, BAL.seabedY - 50); ctx.lineTo(z.x + 25, BAL.seabedY - 50); ctx.lineTo(z.x + 60, BAL.seabedY); ctx.fill();
+        var vimg = this.sp('OBS_Vent');
+        if (vimg) this.spr(ctx, vimg, z.x, BAL.seabedY + 6, 150, 'b');
+        else { ctx.fillStyle = '#3a2a22'; ctx.beginPath(); ctx.moveTo(z.x - 60, BAL.seabedY); ctx.lineTo(z.x - 25, BAL.seabedY - 50); ctx.lineTo(z.x + 25, BAL.seabedY - 50); ctx.lineTo(z.x + 60, BAL.seabedY); ctx.fill(); }
         if (sim.ventActive(z)) { var gp = ctx.createLinearGradient(0, BAL.seabedY - 50, 0, BAL.seabedY - 650); gp.addColorStop(0, 'rgba(255,170,80,0.7)'); gp.addColorStop(1, 'rgba(255,170,80,0)'); ctx.fillStyle = gp; ctx.fillRect(z.x - 55, BAL.seabedY - 650, 110, 600); }
         else if (sim.ventWarn(z)) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; for (k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(z.x + Math.sin(t * 6 + k) * 14, BAL.seabedY - 80 - ((t * 140 + k * 40) % 200), 7, 0, TAU); ctx.fill(); } }
+      } else if (z.kind === 'lava' && this.sp('OBS_Lava')) {
+        this.spr(ctx, this.sp('OBS_Lava'), z.x, z.y + z.h / 2 + 4, z.w * 1.08, 'b');
       } else if (z.kind === 'lava') {
         var lg = ctx.createLinearGradient(0, z.y - z.h / 2, 0, z.y + z.h / 2); lg.addColorStop(0, '#ffb43a'); lg.addColorStop(1, '#e8401a');
         ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(z.x - z.w / 2, z.y + z.h / 2); for (var xk = 0; xk <= z.w; xk += 30) ctx.lineTo(z.x - z.w / 2 + xk, z.y - z.h / 2 + Math.sin(t * 2 + xk * 0.05) * 6); ctx.lineTo(z.x + z.w / 2, z.y + z.h / 2); ctx.closePath(); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,230,120,0.9)'; ctx.stroke();
@@ -181,6 +193,8 @@
         ctx.strokeRect(z.x - z.w / 2, z.y - z.h / 2, z.w, z.h);
         if (ph !== 'off') for (k = 0; k < 4; k++) { ctx.beginPath(); var sx = z.x - z.w / 2; ctx.moveTo(sx, z.y - z.h / 2 + k * 60); for (var q = 1; q <= 8; q++) ctx.lineTo(sx + q * z.w / 8, z.y - z.h / 2 + k * 60 + (q % 2 ? -22 : 22)); ctx.stroke(); }
         ctx.restore();
+      } else if (z.kind === 'whirl' && this.sp('OBS_Whirlpool')) {
+        ctx.save(); ctx.globalAlpha = 0.85; ctx.translate(z.x, z.y); ctx.rotate(t * 2 * (z.sgn || 1)); var wimg = this.sp('OBS_Whirlpool'), wd2 = (z.r || 220) * 2; ctx.drawImage(wimg, -wd2 / 2, -wd2 / 2 * wimg.height / wimg.width, wd2, wd2 * wimg.height / wimg.width); ctx.restore();
       } else if (z.kind === 'whirl') {
         ctx.save(); ctx.translate(z.x, z.y); ctx.rotate(t * 2);
         for (k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(0, 0, 40 + k * 44, k, k + 3.6); ctx.strokeStyle = 'rgba(255,170,255,' + (0.55 - k * 0.08) + ')'; ctx.lineWidth = 12 - k; ctx.stroke(); }
@@ -188,7 +202,68 @@
       }
     }
   };
+  /* ---- CR-4 decor art (assets/decor, ids OBS_* / SEA_* / MID_*): drawn when the sprite is loaded, the procedural drawing is the fallback ---- */
+  var ROCK_TINT = { 1: '#e6dccd', 2: '#a8a88c', 3: '#6c7ea0', 4: '#8aa0b8', 5: '#6a5a98', 6: '#b08470', 7: '#7a68a8' };
+  var WALL_TINT = { 1: '#cfe0ee', 2: '#b0c8a8', 3: '#90a8d0', 4: '#a0c4dc', 5: '#8878b8', 6: '#c89a80', 7: '#a088d0' };
+  P.sp = function (id, color) { var A = OE.Assets; return A ? (color ? A.tint(id, color) : A.get(id)) : null; };
+  // sprite with its aspect kept: centre x, `y` = bottom ('b') or centre ('c'), width w; sway = rotation (rad) around the anchor
+  P.spr = function (ctx, img, x, y, w, anchor, sway) {
+    var iw = img.width, ih = img.height, h = w * ih / iw;
+    if (sway) { ctx.save(); ctx.translate(x, y); ctx.rotate(sway); ctx.drawImage(img, -w / 2, anchor === 'b' ? -h : -h / 2, w, h); ctx.restore(); return; }
+    ctx.drawImage(img, x - w / 2, anchor === 'b' ? y - h : y - h / 2, w, h);
+  };
+  // vertical 9-slice (cap / stretched shaft / cap); the source rows come from OE.decorMeta (px of the full-size art, scaled for the mobile variant)
+  P.slice9v = function (ctx, id, x, y, w, h, color) {
+    var img = this.sp(id, color), meta = (OE.decorMeta || {})[id]; if (!img || !meta || !meta.T) return false;
+    var sc = img.width / meta.w, T = meta.T * sc, B = meta.B * sc, s = w / img.width, capT = T * s, capB = B * s, left = x - w / 2, top = y - h / 2, f = 1, mid;
+    if (capT + capB > h) f = h / (capT + capB);
+    capT *= f; capB *= f; mid = Math.max(0, h - capT - capB);
+    ctx.drawImage(img, 0, 0, img.width, T, left, top, w, capT);
+    if (mid > 0) ctx.drawImage(img, 0, T, img.width, img.height - T - B, left, top + capT, w, mid);
+    ctx.drawImage(img, 0, img.height - B, img.width, B, left, top + h - capB, w, capB);
+    return true;
+  };
+  // one obstacle as a sprite; false = not loaded (procedural drawing)
+  P.drawObsArt = function (ctx, ob, wd) {
+    var img, r = ob.r, t = this.t, n = wd.n;
+    switch (ob.kind) {
+      case 'rock': case 'brock':
+        img = this.sp(ob.kind === 'brock' ? 'OBS_Rock_Cracked' : (ob.id % 2 ? 'OBS_Rock_v1' : 'OBS_Rock_v2'), ROCK_TINT[n] || '#c8c8d0'); if (!img) return false;
+        this.spr(ctx, img, ob.x, ob.kind === 'rock' ? ob.y + r * 0.5 : ob.y + r * 0.9, r * 2.3, 'b'); return true;
+      case 'coral': img = this.sp(ob.id % 2 ? 'OBS_Coral_v1' : 'OBS_Coral_v2'); if (!img) return false; this.spr(ctx, img, ob.x, ob.y + r * 0.45, r * 2.4, 'b'); return true;
+      case 'anemone': img = this.sp('OBS_Anemone'); if (!img) return false; this.spr(ctx, img, ob.x, ob.y + 30, 120, 'b', Math.sin(t * 2 + ob.id) * 0.07); return true;
+      case 'crevice': img = this.sp('OBS_Crevice', ROCK_TINT[n] || '#c8c8d0'); if (!img) return false; this.spr(ctx, img, ob.x, ob.y, 150, 'c'); return true;
+      case 'ruin': return this.slice9v(ctx, 'OBS_Ruin_Column', ob.x, ob.y, ob.w, ob.h);
+      case 'struct': return this.slice9v(ctx, 'OBS_Struct', ob.x, ob.y, ob.w, ob.h, '#c9a8ff');
+      default: return false;
+    }
+  };
+  // Side-scroller wall: the wall tile (tintable) repeated outward from the gap edges, clipped to the wall rectangles
+  P.drawWallArt = function (ctx, o, wy0, H0) {
+    var img = this.sp('OBS_Wall', WALL_TINT[this.wn] || '#a8b8d0'); if (!img) return false;
+    var gt = o.gapY - o.gapH / 2, gb = o.gapY + o.gapH / 2, w = o.w, th = img.height * w / img.width, x = o.x - w / 2, y;
+    ctx.save(); ctx.beginPath(); ctx.rect(x, wy0, w, gt - wy0); ctx.rect(x, gb, w, H0 - gb); ctx.clip();
+    for (y = gt - th; y > wy0 - th; y -= th) ctx.drawImage(img, x, y, w, th);
+    for (y = gb; y < H0; y += th) ctx.drawImage(img, x, y, w, th);
+    ctx.restore(); return true;
+  };
+  // seabed strip (SEA_Wn_Floor, tiles along x at parallax 1.0, 150 world units high, top contour at y = 980) and midground strip (MID_Wn, parallax 0.66, bottom at 1080)
+  P.drawSeabedArt = function (ctx, wd) {
+    var n = wd.n, VW = this.viewW, cam = this.cam, mid = this.sp('MID_W' + n), fl = this.sp('SEA_W' + n + '_Floor'), mh = { 1: 260, 2: 330, 3: 300, 5: 560, 6: 300, 7: 360 }[n] || 300, any = false, x, w, h, off;
+    if (mid) {
+      h = mh; w = mid.width * h / mid.height; off = wrap(cam * 0.66, w); ctx.save(); ctx.globalAlpha = 0.88;
+      for (x = -off; x < VW; x += w) ctx.drawImage(mid, x, 1080 - h, w, h);
+      ctx.restore(); any = true;
+    }
+    if (fl) {
+      h = 150; w = fl.width * h / fl.height; off = wrap(cam, w);
+      for (x = -off; x < VW; x += w) ctx.drawImage(fl, x, 980, w, h);
+      any = true;
+    }
+    return any;
+  };
   P.drawRock = function (ctx, ob, wd) {
+    if (this.drawObsArt(ctx, ob.kind === 'cracked' ? { x: ob.x, y: ob.y, r: ob.r, id: ob.id, kind: 'brock' } : ob, wd)) return;
     var base = wd.n === 1 ? '#8a8f9a' : (wd.n === 2 ? '#6f6a58' : (wd.n === 6 ? '#6a4a3a' : '#475070'));
     ctx.save(); ctx.translate(ob.x, ob.y);
     ctx.beginPath(); for (var i = 0; i < 9; i++) { var a = i / 9 * TAU, r = ob.r * (0.82 + 0.18 * Math.sin(i * 2.3 + ob.id)); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r * 0.85); } ctx.closePath();
@@ -209,6 +284,7 @@
     for (i = 0; i < sim.obs.length; i++) {
       ob = sim.obs[i];
       if (!!ob.fore !== fore) continue;
+      if (ob.kind !== 'rock' && ob.kind !== 'brock' ? this.drawObsArt(ctx, ob, wd) : false) continue;       // CR-4: sprite art when loaded
       switch (ob.kind) {
         case 'coral': this.drawCoral(ctx, ob); break;
         case 'rock': case 'brock': this.drawRock(ctx, ob, wd); break;
@@ -225,6 +301,13 @@
     for (i = 0; i < sim.zones.length; i++) {
       z = sim.zones[i];
       if (z.kind !== 'seaweed' && z.kind !== 'kelp') continue;
+      var simg = this.sp(z.kind === 'kelp' ? 'OBS_Kelp' : 'OBS_Seaweed');
+      if (simg) {
+        var sw = z.h * simg.width / simg.height, cnt = Math.max(1, Math.round(z.w / (sw * 0.75))), q;
+        ctx.save(); ctx.globalAlpha = z.kind === 'kelp' ? 0.85 : 0.8;
+        for (q = 0; q < cnt; q++) this.spr(ctx, simg, z.x - z.w / 2 + (q + 0.5) * z.w / cnt, z.y + z.h / 2, Math.min(sw, z.w * 1.3 / Math.max(1, cnt) + 30), 'b', Math.sin(t * 1.3 + q * 1.7) * 0.04);
+        ctx.restore(); continue;
+      }
       var n = z.kind === 'kelp' ? 9 : 6;
       ctx.save(); ctx.globalAlpha = z.kind === 'kelp' ? 0.7 : 0.55; ctx.lineCap = 'round';
       for (var k = 0; k < n; k++) {
@@ -295,22 +378,46 @@
     }
     // the Too Big Marker (outline + small X) is a DOM element drawn by ui.js so QA can read it
   };
+  // CR-4 v5.1: boss-only effects, procedural for now (art BOSSFX_01..08 follows): lane telegraph band, spines / torpedoes, the stunned finale boss
+  P.drawBossFx = function (ctx, sim) {
+    var i, o, t = this.t, cam = sim.cam.x, VW = this.viewW;
+    if (!sim.bossTele) return;
+    for (i = 0; i < sim.bossTele.length; i++) {
+      o = sim.bossTele[i]; var a = 0.16 + 0.12 * Math.sin(t * 18);
+      ctx.fillStyle = 'rgba(255,60,80,' + a + ')'; ctx.fillRect(cam, o.y - 24, VW, 48);
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 + 0.3 * Math.sin(t * 18)) + ')'; ctx.lineWidth = 3; ctx.setLineDash([22, 14]); ctx.beginPath(); ctx.moveTo(cam, o.y); ctx.lineTo(cam + VW, o.y); ctx.stroke(); ctx.setLineDash([]);
+    }
+    for (i = 0; i < sim.projs.length; i++) {
+      o = sim.projs[i]; ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(Math.atan2(o.vy, o.vx));
+      ctx.shadowColor = o.kind === 'torpedo' ? '#ffb050' : '#ff6bd0'; ctx.shadowBlur = 18;
+      if (o.kind === 'torpedo') { ctx.fillStyle = '#d8dde8'; ctx.strokeStyle = OUT; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(0, 0, 46, 16, 0, 0, TAU); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#ff5a3a'; ctx.beginPath(); ctx.arc(-40, 0, 7, 0, TAU); ctx.fill(); }
+      else { ctx.fillStyle = '#ffe0f6'; ctx.strokeStyle = '#ff6bd0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(-24, -9); ctx.lineTo(-24, 9); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      ctx.restore();
+    }
+    if (sim.finaleBoss && !sim.finaleBoss.dead) {
+      var b = sim.finaleBoss, pulse = 0.5 + 0.5 * Math.sin(t * 10);
+      ctx.save(); ctx.strokeStyle = 'rgba(255,210,63,' + (0.55 + 0.4 * pulse) + ')'; ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 24; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.ellipse(b.x, b.y, b.len * 0.62, Math.max(40, b.br * 1.5), 0, 0, TAU); ctx.stroke(); ctx.restore();
+    }
+  };
   P.drawObjs = function (ctx, sim) {
     var i, o, t = this.t, k;
     for (i = 0; i < sim.objs.length; i++) {
       o = sim.objs[i];
       switch (o.kind) {
         case 'mine':
+          var mimg = this.sp('OBS_Mine');
+          if (mimg) { this.spr(ctx, mimg, o.x, o.y, 72, 'c'); ctx.beginPath(); ctx.arc(o.x, o.y, 6, 0, TAU); ctx.fillStyle = (Math.floor(t * 3) % 2 ? '#ff4040' : '#701010'); ctx.fill(); break; }
           ctx.save(); ctx.translate(o.x, o.y); ctx.strokeStyle = '#333'; ctx.lineWidth = 5; for (k = 0; k < 8; k++) { var a = k / 8 * TAU; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 26, Math.sin(a) * 26); ctx.lineTo(Math.cos(a) * 40, Math.sin(a) * 40); ctx.stroke(); }
           ctx.beginPath(); ctx.arc(0, 0, 28, 0, TAU); ctx.fillStyle = '#5a5f66'; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = OUT; ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fillStyle = (Math.floor(t * 3) % 2 ? '#ff4040' : '#701010'); ctx.fill(); ctx.restore(); break;
         case 'frock':
           if (o.st === 'tele') { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(o.x, BAL.seabedY - 30, 60 + o.t * 30, 14, 0, 0, TAU); ctx.fill(); ctx.strokeStyle = 'rgba(255,120,60,0.6)'; ctx.lineWidth = 4; ctx.setLineDash([10, 10]); ctx.beginPath(); ctx.moveTo(o.x, sim.waterY); ctx.lineTo(o.x, BAL.seabedY - 40); ctx.stroke(); ctx.setLineDash([]); }
-          else { this.drawRock(ctx, { x: o.x, y: o.y, r: o.r, id: 3, kind: 'rock' }, sim.wdef); }
+          else { this.drawRock(ctx, { x: o.x, y: o.y, r: o.r, id: 3, kind: 'cracked' }, sim.wdef); }
           break;
         case 'crock':
           if (o.st === 'gone') break;
           var sx = o.st === 'shake' ? Math.sin(t * 60) * 6 : 0;
-          this.drawRock(ctx, { x: o.x + sx, y: o.y, r: o.r, id: 5, kind: 'rock' }, sim.wdef);
+          this.drawRock(ctx, { x: o.x + sx, y: o.y, r: o.r, id: 5, kind: 'cracked' }, sim.wdef);
           if (o.st === 'shake') { ctx.strokeStyle = 'rgba(255,200,80,0.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(o.x + sx, o.y, o.r + 10, 0, TAU); ctx.stroke(); }
           break;
         case 'ring':
@@ -321,6 +428,8 @@
           ctx.restore(); break;
         case 'wall': case 'swall': {
           var wy0 = sim.waterY, gt = o.gapY - o.gapH / 2, gb = o.gapY + o.gapH / 2, sw = o.kind === 'swall';
+          this.wn = sim.wdef.n;
+          if (!sw && this.drawWallArt(ctx, o, wy0, H)) break;
           ctx.save();
           ctx.fillStyle = sw ? 'rgba(255,110,230,0.5)' : '#5a6b86'; ctx.strokeStyle = sw ? 'rgba(255,255,255,0.95)' : OUT; ctx.lineWidth = sw ? 8 : 6;
           ctx.fillRect(o.x - o.w / 2, wy0, o.w, gt - wy0); ctx.fillRect(o.x - o.w / 2, gb, o.w, H - gb);
@@ -346,6 +455,16 @@
         case 'ink': var ig = ctx.createRadialGradient(o.x, o.y, 10, o.x, o.y, o.r * (1.2 - 0.3 * o.t / o.life)); ig.addColorStop(0, 'rgba(15,5,30,0.95)'); ig.addColorStop(1, 'rgba(15,5,30,0)'); ctx.globalAlpha = Math.min(1, (o.life - o.t) * 2); ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 1.3, 0, TAU); ctx.fill(); ctx.globalAlpha = 1; break;
         case 'tent':
           if (o.st === 'tele') { ctx.fillStyle = 'rgba(255,60,120,' + (0.25 + 0.2 * Math.sin(t * 20)) + ')'; ctx.beginPath(); ctx.ellipse(o.x, BAL.seabedY, 70, 18, 0, 0, TAU); ctx.fill(); break; }
+          var tseg = this.sp('OBS_Tentacle_Seg'), ttip = this.sp('OBS_Tentacle_Tip');
+          if (tseg && ttip) {
+            var px = o.x, py = o.baseY, an = -Math.PI / 2, nx, ny, dl;
+            for (k = 0; k < o.pts.length; k++) {
+              nx = o.pts[k][0]; ny = o.pts[k][1]; dl = Math.hypot(nx - px, ny - py); an = Math.atan2(ny - py, nx - px);
+              ctx.save(); ctx.translate(px, py); ctx.rotate(an); ctx.drawImage(tseg, -4, -36, dl + 8, 72); ctx.restore(); px = nx; py = ny;
+            }
+            ctx.save(); ctx.translate(px, py); ctx.rotate(an); ctx.drawImage(ttip, -10, -45, 90 * ttip.width / ttip.height, 90); ctx.restore();
+            break;
+          }
           ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = OUT;
           for (var pass = 0; pass < 2; pass++) {
             ctx.beginPath(); ctx.moveTo(o.x, o.baseY);
@@ -368,13 +487,64 @@
   };
 
   /* ---------------------------------------------------------------- overlays: darkness, fx */
+  /* CR-4: in the dark (Side-scroller / Classic levels with sim.dark) every blocker stays readable: it is drawn again ABOVE the darkness as a translucent body with a bright glowing
+     outline, its gap edges are highlighted green and a light pocket (reduced darkness) is laid around it and its gap. Walls = yellow, shock walls / boss rings = magenta-white,
+     tentacle columns = orange (telegraph: pulsing red), the other hazards (mines, falling / collapsing rocks, electric zones) get a glowing ring. */
+  P.glowRect = function (ctx, x, y, w, h, col, fillA) {
+    if (h <= 0) return;
+    ctx.fillStyle = col; ctx.globalAlpha = fillA; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1;
+    ctx.shadowColor = col; ctx.shadowBlur = 26; ctx.lineWidth = 7; ctx.strokeStyle = col; ctx.strokeRect(x, y, w, h);
+    ctx.shadowBlur = 0; ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.strokeRect(x, y, w, h);
+  };
+  P.drawBlockers = function (ctx, sim) {
+    var i, o, t = this.t, cam = sim.cam.x, VW = this.viewW, wy0 = sim.waterY, ring;
+    ctx.save(); ctx.translate(-cam, 0);
+    function pocket(x, y, r, a) {
+      var g = ctx.createRadialGradient(x, y, r * 0.15, x, y, r);
+      g.addColorStop(0, 'rgba(150,205,255,' + a + ')'); g.addColorStop(1, 'rgba(150,205,255,0)');
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = 'source-over';
+    }
+    for (i = 0; i < sim.objs.length; i++) {
+      o = sim.objs[i];
+      if (o.kind === 'wall' || o.kind === 'swall' || o.kind === 'column') {
+        if (o.x + o.w < cam - 120 || o.x - o.w > cam + VW + 120) continue;
+        var gt = o.gapY - o.gapH / 2, gb = o.gapY + o.gapH / 2, x0 = o.x - o.w / 2, tele = o.kind === 'column' && o.st === 'tele';
+        var col = tele ? 'rgb(255,' + Math.round(70 + 40 * Math.sin(t * 24)) + ',96)' : (o.kind === 'wall' ? '#ffe066' : (o.kind === 'swall' ? '#ff8af5' : '#ffb050'));
+        pocket(o.x, o.gapY, Math.max(340, o.gapH * 1.5), tele ? 0.3 : 0.24);
+        ctx.save();
+        this.glowRect(ctx, x0, wy0, o.w, gt - wy0, col, tele ? 0.28 : 0.42);
+        this.glowRect(ctx, x0, gb, o.w, H - gb, col, tele ? 0.28 : 0.42);
+        // gap edges: bright green bars across the opening
+        ctx.shadowColor = '#5dff9a'; ctx.shadowBlur = 22; ctx.lineWidth = 9; ctx.strokeStyle = '#5dff9a'; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x0 - 46, gt); ctx.lineTo(x0 + o.w + 46, gt); ctx.moveTo(x0 - 46, gb); ctx.lineTo(x0 + o.w + 46, gb); ctx.stroke();
+        ctx.restore();
+      } else if (o.kind === 'ring') {
+        pocket(o.x, o.y, o.r + 220, 0.2);
+        ctx.save(); ctx.beginPath(); ctx.rect(0, wy0, W, H); ctx.clip();
+        ctx.shadowColor = '#ff8af5'; ctx.shadowBlur = 30; ctx.lineWidth = o.thick * 0.5; ctx.strokeStyle = 'rgba(255,138,245,0.85)';
+        ctx.beginPath(); ctx.arc(o.x, o.y, o.r, o.gap + o.gapW / 2, o.gap - o.gapW / 2 + TAU); ctx.stroke(); ctx.restore();
+      } else if (o.kind === 'mine' || o.kind === 'frock' || (o.kind === 'crock' && o.st !== 'gone')) {
+        if (o.x < cam - 200 || o.x > cam + VW + 200) continue;
+        ctx.save(); ctx.shadowColor = '#ffb050'; ctx.shadowBlur = 24; ctx.lineWidth = 6; ctx.strokeStyle = '#ffcf5a';
+        ctx.beginPath(); ctx.arc(o.x, o.y === undefined ? BAL.seabedY - 30 : o.y, (o.r || 30) + 12, 0, TAU); ctx.stroke(); ctx.restore();
+      }
+    }
+    for (i = 0; i < sim.zones.length; i++) {
+      o = sim.zones[i];
+      if (o.kind !== 'elec' || o.x + o.w / 2 < cam - 100 || o.x - o.w / 2 > cam + VW + 100) continue;
+      ctx.save(); ctx.shadowColor = '#8ae9ff'; ctx.shadowBlur = 22; ctx.lineWidth = 6; ctx.strokeStyle = sim.elecPhase(o) === 'off' ? 'rgba(138,233,255,0.55)' : '#8ae9ff'; ctx.setLineDash([16, 10]);
+      ctx.strokeRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h); ctx.restore();
+    }
+    ctx.restore();
+  };
   P.drawDark = function (ctx, sim) {
     var R = sim.dark; if (!R) return;
     var p = sim.player, i, c, cam = sim.cam.x, px = p.x - cam;
     ctx.save();
     var gr = ctx.createRadialGradient(px, p.y, R * 0.55, px, p.y, R);
     gr.addColorStop(0, 'rgba(2,6,22,0)'); gr.addColorStop(1, 'rgba(2,6,22,0.94)');
-    ctx.fillStyle = gr; ctx.fillRect(0, BAL.waterY - 6, this.viewW, H);
+    ctx.fillStyle = gr; ctx.fillRect(0, sim.waterY - 6, this.viewW, H);
+    this.drawBlockers(ctx, sim);                               // CR-4: blockers and hazards glow above the darkness
     ctx.translate(-cam, 0);
     // glowing creatures stay visible
     for (i = 0; i < sim.creatures.length; i++) {
@@ -415,7 +585,7 @@
     if (this.bubT <= 0) { this.bubT = 0.25; this.addPart({ x: this.cam + Math.random() * this.viewW, y: H - 40 - Math.random() * 120, vx: (Math.random() - 0.5) * 20, vy: -60 - Math.random() * 60, life: 6, max: 6, r: 2 + Math.random() * 5, c: 'rgba(255,255,255,0.35)', g: -8 }); }
     for (i = 0; i < this.motes.length; i++) {
       m = this.motes[i]; m.y -= m.v * dt * 0.5; m.x += Math.sin(this.t + m.p) * 6 * dt;
-      if (m.y < BAL.waterY + 10) { m.y = H; m.x = Math.random() * this.viewW; }
+      if (m.y < (sim.deep ? 0 : BAL.waterY) + 10) { m.y = H; m.x = Math.random() * this.viewW; }
       ctx.fillStyle = wd.n === 6 ? 'rgba(255,170,110,0.5)' : (wd.n >= 3 && wd.n !== 4 ? 'rgba(160,240,255,0.45)' : 'rgba(255,255,255,0.35)');
       ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, TAU); ctx.fill();
     }
@@ -430,8 +600,8 @@
     var fake = { waterY: BAL.waterY, wdef: wd };
     this.cam = 0;
     var bg = OE.Assets.get('BG_W' + wd.n + '_Back');
-    if (bg) { this.drawFarBg(ctx, bg, 0); this.drawWaterLine(ctx, fake); }
-    else { this.drawSky(ctx, wd, fake); this.drawWater(ctx, wd, fake); }
+    if (bg) { this.drawFarBg(ctx, bg, 0, !!wd.deep); if (!wd.deep) this.drawWaterLine(ctx, fake); }
+    else { if (!wd.deep) this.drawSky(ctx, wd, fake); fake.deep = !!wd.deep; if (wd.deep) fake.waterY = BAL.deepWaterY; this.drawWater(ctx, wd, fake); }
   };
   P.draw = function (dtMs) {
     var dt = Math.min(0.1, dtMs / 1000), ctx = this.ctx, game = this.game, sim = game.sim;
@@ -442,14 +612,15 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.cv.width, this.cv.height);
     ctx.setTransform(this.k, 0, 0, this.k, 0, 0);
+    this.camY = sim && game.mode === 'game' ? sim.cam.y : 0; ctx.translate(0, -this.camY);        // CR-4: vertical follow (view top, world units)
     if (this.shakeT > 0) { this.shakeT -= dt; var sh = this.shake * (this.shakeT / 0.3); ctx.translate((Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh); }
     if (!sim || game.mode !== 'game') { this.glowLine = 0; this.drawIdle(ctx); return; }
     var wd = sim.wdef, i, list, cam = sim.cam.x, VW = this.viewW;
     this.cam = cam;
     this.glowLine = sim.jumpEligible() ? 1 : 0;
     var bg = OE.Assets.get('BG_W' + wd.n + '_Back');
-    if (bg) { this.drawFarBg(ctx, bg, cam); this.drawWaterLine(ctx, sim); }
-    else { this.drawSky(ctx, wd, sim); this.drawWater(ctx, wd, sim); }
+    if (bg) { this.drawFarBg(ctx, bg, cam, sim.deep); this.drawSeabedArt(ctx, wd); if (!sim.deep) this.drawWaterLine(ctx, sim); }
+    else { if (!sim.deep) this.drawSky(ctx, wd, sim); this.drawWater(ctx, wd, sim); }
     ctx.save(); ctx.translate(-cam, 0);                        // world space from here
     this.drawZonesBack(ctx, sim);
     this.drawObstacles(ctx, sim, false);
@@ -462,6 +633,7 @@
     this.drawObstacles(ctx, sim, true);
     this.drawZonesFront(ctx, sim);
     this.drawObjs(ctx, sim);
+    this.drawBossFx(ctx, sim);
     this.drawFx(ctx, dt);
     ctx.restore();
     this.ambient(ctx, sim, dt);

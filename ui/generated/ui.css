@@ -24,9 +24,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--letter
 }
 .stage[data-narrow] [data-layout="Wide"] { display: none !important; }
 .stage[data-narrow] [data-layout-alt] { display: block !important; }
-/* BonusPhase layers under the 240 px Narrow band (orchestrator decision CR-3, GCF_UI_Figma HUD set description):
-   Finish Button 170 -> 260, Bonus Timer 198 -> 288 below 1700 logical width; Wide unchanged */
+/* Boss layers under the 240 px Narrow band (CR-4, GCF_UI_Figma HUD set description): below 1700 logical width
+   Boss Phase Pips 168 -> 258 and Boss Name 204 -> 294 (+90 px); Wide unchanged */
 @container oe-stage (max-width: 1699.98px) {
-  .stage [data-layer="Finish Button"], .stage [data-layer="Bonus Timer"] { translate: 0 90px; }
+  [data-layer="T_Game_HUD"] [data-layer="Boss Phase Pips"], [data-layer="T_Game_HUD"] [data-layer="Boss Name"] { translate: 0 90px; }
 }
-.stage[data-narrow] [data-layer="Finish Button"], .stage[data-narrow] [data-layer="Bonus Timer"] { translate: 0 90px; }
+.stage[data-narrow] [data-layer="Boss Phase Pips"], .stage[data-narrow] [data-layer="Boss Name"] { translate: 0 90px; }

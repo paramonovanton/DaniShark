@@ -16,8 +16,14 @@
     try { var c = document.createElement('canvas'); c.width = c.height = 1; return c.toDataURL('image/webp').indexOf('data:image/webp') === 0; } catch (e) { return false; }
   }
 
+  // CR-4 decor art (assets/decor): the obstacle sprites each kind of level obstacle needs (the generated art ids of AIFigmaPipeline/art/2026-11-11-decor)
+  var DECOR_KIND = { rock: ['OBS_Rock_v1', 'OBS_Rock_v2'], brock: ['OBS_Rock_Cracked'], collapse: ['OBS_Rock_Cracked'], fall: ['OBS_Rock_Cracked'], crevice: ['OBS_Crevice'], coral: ['OBS_Coral_v1', 'OBS_Coral_v2'],
+    anemone: ['OBS_Anemone'], seaweed: ['OBS_Seaweed'], kelp: ['OBS_Kelp'], ruin: ['OBS_Ruin_Column'], struct: ['OBS_Struct'], vent: ['OBS_Vent'], lava: ['OBS_Lava'], whirl: ['OBS_Whirlpool'] };
+  // boss levels (level 5) add what the boss director spawns there (falling rocks, plumes, lava, mines, tentacles)
+  var DECOR_BOSS = { 5: ['OBS_Mine'], 6: ['OBS_Vent', 'OBS_Lava', 'OBS_Rock_Cracked'], 7: ['OBS_Tentacle_Seg', 'OBS_Tentacle_Tip', 'OBS_Struct'] };
+
   var A = {
-    manifest: {}, images: {}, pending: {}, failed: [], loading: 0, webp: false, stats: { requested: 0, loaded: 0, bytesHint: 0 },
+    manifest: {}, tints: {}, images: {}, pending: {}, failed: [], loading: 0, webp: false, stats: { requested: 0, loaded: 0, bytesHint: 0 },
     init: function () { this.manifest = OE.assetManifest || {}; this.webp = detectWebp() && !/[?&]nowebp=1/.test(g.location ? g.location.search : ''); },
     // BUG-U4: the tier decides what is decoded. lite = no art at all (procedural drawing); mobile = the small variant ('m') where the manifest has one
     tier: function () { return (OE.Browser && OE.Browser.tier) || 'desktop'; },
@@ -62,6 +68,7 @@
       var keep = {}, id, img;
       ids.forEach(function (x) { keep[ALIAS[x] || x] = 1; });
       this.keep = keep;
+      for (id in this.tints) { if (!keep[id.split('|')[0]]) delete this.tints[id]; }                    // CR-4: tinted copies of released decor art
       for (id in this.images) {
         if (keep[id]) continue;
         img = this.images[id]; delete this.images[id]; this.stats.released = (this.stats.released || 0) + 1;
@@ -69,6 +76,16 @@
       }
     },
     ready: function () { return this.loading === 0; },
+    // CR-4: a multiply-tinted copy of a decor sprite (rocks, walls, structures take the colour of their world), at most 384 px wide, cached until the art is released
+    tint: function (id, color) {
+      var key = id + '|' + color, t = this.tints[key], img, s, c, x;
+      if (t) return t;
+      img = this.get(id); if (!img || !g.document) return null;
+      s = Math.min(1, 384 / img.width); c = g.document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * s)); c.height = Math.max(1, Math.round(img.height * s));
+      x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height); x.globalCompositeOperation = 'multiply'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+      x.globalCompositeOperation = 'destination-in'; x.drawImage(img, 0, 0, c.width, c.height);
+      this.tints[key] = c; return c;
+    },
     get: function (id) { return this.images[id] || this.images[ALIAS[id]] || null; },
     has: function (id) { return !!this.get(id); },
 
@@ -87,6 +104,13 @@
         (l.per || []).forEach(function (p) { add(p.id); });
         if (l.boss === 'bloop') add('bloop');
       });
+      ids.push('SEA_W' + n + '_Floor', 'MID_W' + n, 'OBS_Wall');                          // CR-4: the seabed strip, the midground strip (not in World 4) and the wall tile of the Side-scroller
+      wd.levels.forEach(function (l, li) {
+        if (mobile && li !== level - 1) return;
+        var key; for (key in (l.obs || {})) (DECOR_KIND[key] || []).forEach(function (d) { ids.push(d); });
+        if (li === 4 || l.boss) (DECOR_BOSS[n] || []).forEach(function (d) { ids.push(d); });
+      });
+      if (n === 5) ids.push('OBS_Mine');
       if (!mobile) for (i = 0; i < wd.surf.length; i++) ids.push('SRF_' + wd.surf[i][0]);
       else for (i = 0; i < wd.surf.length; i++) if (wd.surf[i][1] <= level) ids.push('SRF_' + wd.surf[i][0]);      // mobile: the surface targets this level has
       for (k in OE.EVENTS) { /* event targets come from the lists above; islands etc. fall back to procedural art */ }

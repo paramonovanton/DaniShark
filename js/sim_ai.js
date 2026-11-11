@@ -28,7 +28,7 @@
   P.rosterSize = function (type, def) {
     var R = BAL.ROSTER_REL[this.world], rel = R && R.rel[type];
     if (rel === undefined) return def.size;
-    var size = rel * this.S * this.rng.range(0.9, 1.1);
+    var size = rel * (def.k === 'pred' && this.diff ? this.diff.tier : 1) * this.S * this.rng.range(0.9, 1.1);          // CR-4 v5.1: predator tier factor 0.9 .. 1.4 (relative sizes, never below 1.15)
     return def.k === 'pred' ? Math.max(size, 1.16 * this.S) : size;      // a creature listed as a predator is always a predator when it spawns (the 0.9 factor must not turn a 1.15 roster entry into a peer)
   };
   P.sizeCreature = function (c) {
@@ -198,7 +198,7 @@
       this.sizeCreature(c);
       c.role = this.roleOf(c);
       var ai = this['ai_' + c.def.ai];
-      if (ai) ai.call(this, c, dt);
+      if (c.scr) { this.moveScr(c, dt); } else if (ai) ai.call(this, c, dt);                        // CR-4: scripted boss attacks fly straight lines
       // integrate
       c.x += c.vx * dt; c.y += c.vy * dt;
       if (Math.abs(c.vx) > 10) c.facing = sign(c.vx);
@@ -209,8 +209,9 @@
         else if (c.y > yMax) { c.y = yMax; c.vy = -Math.abs(c.vy) * (c.def.ai === 'bottom' ? 0 : 1); }
         if (c.def.ai !== 'ambush' && c.def.ai !== 'still' && c.def.ai !== 'rush') this.solidPush(c, c.br);
       }
+      if (c.scr && this.scrGone(c)) c.dead = true;
       // crossing creatures leave through the far side of the world
-      if (c.cross) {
+      if (c.cross && !c.scr) {
         var dirx = c.cdir || (c.cvx < 0 ? -1 : 1);
         if ((dirx > 0 && c.x > W + c.len * 1.5) || (dirx < 0 && c.x < -c.len * 1.5)) c.dead = true;
       }

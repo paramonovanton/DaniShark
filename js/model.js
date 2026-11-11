@@ -8,16 +8,14 @@
   var GR = BAL.GROWTH;
 
   /* ---- growth, size, forms (CR-3: per level, level GP 0..450, restarts at 0) ---- */
+  // CR-4: S at the start of form f = 10 x 1.2^(f-1); inside a form S grows linearly with GP by IN_FORM (20 %) of the gap to the next start, then steps at the evolution
+  function sizeStart(f) { return 10 * Math.pow(BAL.SIZE_STEP, f - 1); }
   function sizeForGP(gp) {
-    var a = BAL.anchors;
     gp = U.clamp(gp, 0, BAL.maxGP);
-    for (var i = 1; i < a.length; i++) {
-      if (gp <= a[i][0]) {
-        var t = (gp - a[i - 1][0]) / (a[i][0] - a[i - 1][0]);
-        return a[i - 1][1] + (a[i][1] - a[i - 1][1]) * t;
-      }
-    }
-    return a[a.length - 1][1];
+    var T = GR.FORM_GP, f = 1, i;
+    for (i = 0; i < T.length; i++) if (gp >= T[i] - 1e-9) f = i + 1;
+    var lo = T[f - 1], hi = f < T.length ? T[f] : BAL.maxGP, t = hi > lo ? U.clamp((gp - lo) / (hi - lo), 0, 1) : 0, a = sizeStart(f), b = sizeStart(f + 1);
+    return a + BAL.IN_FORM * t * (b - a);
   }
   function formForGP(gp) {
     var f = 1;
@@ -31,9 +29,9 @@
     if (f >= 8) return 1;
     return U.clamp((gp - GR.FORM_GP[f - 1]) / (GR.FORM_GP[f] - GR.FORM_GP[f - 1]), 0, 1);
   }
-  function goalForm(world, level) { return GR.GOAL_FORM[world][level - 1]; }
-  // player length in px (R-OE-28): clamp(120 + 140 ln(S/10) / ln 28, 120, 260)
-  function lenPx(S) { return U.clamp(BAL.playerLenBase + BAL.playerLenSpan * Math.log(S / 10) / Math.log(28), BAL.playerLenMin, BAL.playerLenMax); }
+  function goalForm() { return GR.GOAL_FORM; }                                // CR-4 v5.1: every level ends at the Kraken (form 8, 7 evolutions)
+  // player length in world units (CR-4, R-OE-28): 9 x S = 90 (Tiny Fish) .. 322.5 (Kraken at its start), at most 335; on screen x ZOOM
+  function lenPx(S) { return U.clamp(BAL.LEN_PER_S * S, BAL.playerLenMin, BAL.playerLenMax); }
 
   /* ---- save ---- */
   function defaultSave() {
@@ -121,30 +119,33 @@
   function allCompleted(save) { for (var n = 1; n <= 7; n++) if (!save.worlds[n].completed) return false; return true; }
   function isReplay(save, world, level) { return level <= save.worlds[world].levelsCompleted; }
 
-  // stars from the form reached at the end of a level (R-OE-14): goal form = 1, +1 = 2, +2 = 3
-  function starsFor(formAtEnd, goal) { return U.clamp(formAtEnd - goal + 1, 1, 3); }
+  // CR-4 v5.1 (R-OE-14): stars = hearts left when the Kraken is reached (3 / 2 / 1)
+  function starsFor(hearts) { return U.clamp(hearts | 0, 1, 3); }
+  // target time to the Kraken (spec v5.1): (7 x step time + 15) x level factor
+  function targetDuration(world, level) { return Math.round((7 * GR.STEP_TIME_S_BY_WORLD[world] + 15) * GR.LEVEL_DURATION_FACTOR[level - 1]); }
 
   // Apply a won level (R-OE-19). Pure: returns {save, res}; the caller persists save. run: {world, level, formAtEnd, coinsCollected}
   function applyLevelWin(save, run) {
     var s = U.deepCopy(save), w = s.worlds[run.world], lv = run.level, goal = goalForm(run.world, lv);
     var replay = lv <= w.levelsCompleted, firstWorldClear = false;
-    var stars = starsFor(run.formAtEnd, goal);
+    var stars = starsFor(run.hearts === undefined ? 3 : run.hearts);
     if (!replay) w.levelsCompleted = Math.max(w.levelsCompleted, lv);
     var prevBest = w.bestForm[lv - 1];
     if (stars > w.stars[lv - 1]) w.stars[lv - 1] = stars;
-    if (run.formAtEnd > w.bestForm[lv - 1]) w.bestForm[lv - 1] = run.formAtEnd;
-    if (run.formAtEnd > s.stats.bestForm) s.stats.bestForm = run.formAtEnd;
+    w.bestForm[lv - 1] = 8; run.formAtEnd = 8;
+    if (8 > s.stats.bestForm) s.stats.bestForm = 8;
     if (lv === 5 && !w.completed) { w.completed = true; firstWorldClear = true; }
     var levelBonus = 10 + 5 * run.world + 5 * stars;
     var worldBonus = firstWorldClear ? 50 * run.world : 0;
-    s.coins += levelBonus + worldBonus;
+    var bossBonus = lv === 5 ? run.world * (run.bossEaten ? 50 : 25) : 0;          // CR-4 v5.1 (R-OE-53): 50 x world when the finale boss is eaten, 25 x world when it retreats
+    s.coins += levelBonus + worldBonus + bossBonus;
     s.stats.levelsWon += 1;
     return {
       save: s,
       res: {
-        world: run.world, level: lv, replay: replay, stars: stars, goalForm: goal, formAtEnd: run.formAtEnd, firstWorldClear: firstWorldClear,
-        newBest: run.formAtEnd > prevBest, levelBonus: levelBonus, worldBonus: worldBonus,
-        coinsCollected: run.coinsCollected || 0, coinsRow: (run.coinsCollected || 0) + levelBonus + worldBonus,
+        world: run.world, level: lv, replay: replay, stars: stars, heartsLeft: run.hearts === undefined ? 3 : run.hearts, goalForm: goal, formAtEnd: 8, firstWorldClear: firstWorldClear,
+        newBest: prevBest < 8, levelBonus: levelBonus, worldBonus: worldBonus, bossBonus: bossBonus, bossEaten: !!run.bossEaten,
+        coinsCollected: run.coinsCollected || 0, coinsRow: (run.coinsCollected || 0) + levelBonus + worldBonus + bossBonus,
         unlockedWorld: firstWorldClear && run.world < 7 ? run.world + 1 : 0, finalWorld: firstWorldClear && run.world === 7
       }
     };
@@ -155,7 +156,7 @@
 
   OE.Model = {
     viewWidth: viewWidth,
-    SAVE_VERSION: SAVE_VERSION, sizeForGP: sizeForGP, formForGP: formForGP, lenPx: lenPx, gpForForm: gpForForm, formProgress: formProgress, goalForm: goalForm, starsFor: starsFor,
+    SAVE_VERSION: SAVE_VERSION, sizeForGP: sizeForGP, sizeStart: sizeStart, formForGP: formForGP, lenPx: lenPx, gpForForm: gpForForm, formProgress: formProgress, goalForm: goalForm, starsFor: starsFor, targetDuration: targetDuration,
     defaultSave: defaultSave, normalizeSave: normalizeSave, looseSave: looseSave,
     worldState: worldState, currentWorld: currentWorld, nextLevel: nextLevel, allCompleted: allCompleted,
     isReplay: isReplay, applyLevelWin: applyLevelWin

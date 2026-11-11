@@ -43,7 +43,7 @@
     document.documentElement.setAttribute('data-insets', [m.t, m.r, m.b, m.l].map(Math.round).join(','));
     ui.fitGen = (ui.fitGen || 0) + 1;                                   // labels are re-fitted after a layout change (Wide / Narrow copies switch)
     render.resize(viewW * S, Math.min(g.devicePixelRatio || 1, Br.dprCap()), viewW);      // BUG-U4: mobile tier <= 1.5, lite 1
-    game.setView(viewW);
+    game.setView(viewW / BAL.ZOOM);                                   // CR-4: the game works in world units: visible width = view / ZOOM
     game.setPortrait(tall && Br.touchPhone(m.vw, m.vh));
     OE.fitInfo = { vw: m.vw, vh: m.vh, insets: [m.t, m.r, m.b, m.l], area: [m.aw, m.ah], scale: S, stageW: stageW, left: m.l + left, top: m.t + top };
   }

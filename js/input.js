@@ -40,7 +40,7 @@
       this.game = game; this.stage = stageEl; this.scaleFn = scaleFn; this.ui = ui;
       this.gesture = new Gesture(function (x, y, down) { game.pointer(x, y, down); }, function (kind, x, y, dx) {
         var sim = game.sim, dir = 0;
-        if (sim) { var px = sim.player.x, wx = x + sim.cam.x; dir = Math.abs(wx - px) > 30 ? (wx > px ? 1 : -1) : 0; if (kind === 'swipe' && Math.abs(dx) > 30) dir = dx > 0 ? 1 : -1; }
+        if (sim) { var px = sim.player.x, wx = sim.worldX(x); dir = Math.abs(wx - px) > 30 ? (wx > px ? 1 : -1) : 0; if (kind === 'swipe' && Math.abs(dx) > 30) dir = dx > 0 ? 1 : -1; }
         game.jump(dir);
       });
       function pt(e) {

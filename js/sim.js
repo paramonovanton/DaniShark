@@ -19,7 +19,9 @@
     this.t = 0; this.stepNo = 0; this.levelGP = U.clamp(o.levelGP || 0, 0, BAL.maxGP); this.hearts = BAL.hearts; this.coins = 0;
     this.halted = false; this.ended = null; this.dying = false; this.dyingT = 0; this.cause = null;
     this.nextId = 1;
-    this.waterY = BAL.waterY; this.drift = 0; this.driftT = 0; this.driftDir = 1; this.currentOv = null;
+    this.diff = BAL.SIDE.DIFFICULTY_TABLE[this.world + '-' + this.level];                // CR-4 v5.1: the difficulty row of this level
+    this.deep = !!this.wdef.deep;                      // CR-4: The Abyss: water fills the whole view, no surface, no jump
+    this.waterY = this.deep ? BAL.deepWaterY : BAL.waterY; this.lanes = this.deep ? BAL.SIDE.lanesDeep : BAL.SIDE.lanes; this.bands = this.deep ? BAL.bandsDeep : BAL.bands; this.drift = 0; this.driftT = 0; this.driftDir = 1; this.currentOv = null;
     this.creatures = []; this.surface = []; this.pickups = []; this.obs = []; this.zones = []; this.objs = []; this.groups = {};
     this.events = [];
     this.evt = null; this.eventDone = false; this.surfT = 3; this.surfCount = 0; this.lastEligibleT = 0;
@@ -28,8 +30,9 @@
     this.ev = { prey: 0, peer: 0, threat: 0 };      // spawn events by class (spec v4.1, UC world_rosters)
     this.stats = { jumps: 0, surfaceEaten: 0, eaten: 0, moved: 0, firstEat: false, jumpedOnce: false, kicks: 0 };
     this.tide = 0; this.jumpSerial = 0; this.surfaceHistory = [];
-    this.viewW = U.clamp(o.viewW || BAL.DESIGN_W, BAL.VIEW_W_MIN, BAL.VIEW_W_MAX);
-    this.cam = { x: 0 };
+    // CR-4 (R-OE-49): viewW = the VISIBLE world width (view / ZOOM, 1536 at the reference), cam.y = the view top (0..216), screen px = (world - cam) x ZOOM
+    this.viewW = U.clamp(o.viewW || BAL.DESIGN_W / BAL.ZOOM, BAL.VIEW_W_MIN / BAL.ZOOM, BAL.VIEW_W_MAX / BAL.ZOOM);
+    this.cam = { x: 0, y: 0 };
     this.respawn = [];
     this.form = 1; this.S = 10;
     this.player = {
@@ -42,7 +45,8 @@
     this.derive(true);
     if (this.side) { this.player.x = BAL.SIDE.screenX * this.viewW; this.buildSide(); }
     else this.build();
-    this.cam.x = 0;
+    this.cam.x = 0; this.snapCameraY();
+    this.bossInit();                                    // CR-4 v5.1: level 5 of every world is a boss level (sim_boss.js)
   }
   OE.Sim = Sim;
   var P = Sim.prototype;
@@ -55,15 +59,16 @@
   // (len eases over BODY.lenEaseS; the colliders use the eased value). snap = no easing (start of a level, QA setters).
   P.derive = function (snap) {
     var p = this.player, to = M.lenPx(this.S);
-    if (snap || p.lenTo === undefined) { p.len = p.lenFrom = p.lenTo = to; p.lenT = BAL.BODY.lenEaseS; }
-    else if (to !== p.lenTo) { p.lenFrom = p.len; p.lenTo = to; p.lenT = 0; }
+    if (snap || p.lenTo === undefined) { p.len = p.lenFrom = p.lenTo = to; p.lenT = p.easeS = BAL.BODY.lenEaseS; }
+    else if (to !== p.lenTo) { p.lenFrom = p.len; p.lenTo = to; p.lenT = 0; p.easeS = to > p.len * 1.1 ? BAL.BODY.evoEaseS : BAL.BODY.lenEaseS; }       // CR-4: an evolution step eases over 0.4 s, a bite over 0.15 s
     p.r = p.len * BAL.BODY.bodyR;
   };
   P.updateLen = function (dt) {
     var p = this.player;
-    if (p.lenT < BAL.BODY.lenEaseS) {
-      p.lenT = Math.min(BAL.BODY.lenEaseS, p.lenT + dt);
-      var k = p.lenT / BAL.BODY.lenEaseS;
+    var ez = p.easeS || BAL.BODY.lenEaseS;
+    if (p.lenT < ez) {
+      p.lenT = Math.min(ez, p.lenT + dt);
+      var k = p.lenT / ez;
       p.len = p.lenFrom + (p.lenTo - p.lenFrom) * k;
     } else p.len = p.lenTo;
     p.r = p.len * BAL.BODY.bodyR;
@@ -79,11 +84,12 @@
       for (var q = from + 1; q <= f; q++) if (this.formReachedT[q] === undefined) this.formReachedT[q] = this.t;
       if (f > this.maxForm) this.maxForm = f;
       if (!silent) {
-        this.hearts = Math.min(BAL.GROWTH.HEARTS_MAX, this.hearts + steps * BAL.GROWTH.HEART_ON_EVOLVE);
+        var hf = 0; for (var qh = from + 1; qh <= f; qh++) if (BAL.GROWTH.HEART_ON_EVOLVE_FORMS.indexOf(qh) >= 0) hf++;       // CR-4 v5.1: +1 heart only on the evolutions to forms 3, 5 and 7
+        this.hearts = Math.min(BAL.GROWTH.HEARTS_MAX, this.hearts + hf * BAL.GROWTH.HEART_ON_EVOLVE);
         this.player.invuln = Math.max(this.player.invuln, BAL.GROWTH.EVO_INVULN_S);
         this.emit('evolve', { from: from, to: f, hearts: this.hearts });
       }
-      if (f >= this.goalForm && !this.goalReached) { this.goalReached = true; this.goalAt = this.t; if (!silent) this.emit('goal', { form: f }); }
+      if (f >= this.goalForm && !this.goalReached) { this.goalReached = true; this.goalAt = this.t; this.krakenHearts = this.hearts; if (!silent) this.emit('kraken', { form: f, hearts: this.hearts }); }      // CR-4 v5.1: the goal of every level = the Kraken; stars = hearts left now
       this.scheduleEvent();
     } else if (f < this.form) this.form = f;
     this.derive(snap);
@@ -91,6 +97,7 @@
   // surface event: once per level, EVENT_DELAY_S after the form first reaches the event form (5: Pirate Treasure, 6: Aircraft Challenge / Island Destruction, 7: Cargo Ship)
   P.scheduleEvent = function () {
     if (this.evtPending || this.eventDone || this.evt) return;
+    if (this.deep) return;                                                              // CR-4: no surface events in the deep ocean
     var f = this.form, id = null;
     if (f >= 7) id = 'cargo_ship'; else if (f === 6) id = this.rng.chance(0.5) ? 'aircraft_challenge' : 'island_destruction'; else if (f === 5) id = 'pirate_treasure';
     if (id) this.evtPending = { id: id, at: this.t + BAL.GROWTH.EVENT_DELAY_S };
@@ -174,17 +181,23 @@
   /* ---- input ---- */
   // pointer in SCREEN coordinates (logical px of the view); the sim converts to world with the camera every step
   P.setPointer = function (sx, sy, down) {
-    var p = this.player.ptr; p.sx = U.clamp(sx, 0, this.viewW); p.sy = U.clamp(sy, 0, H); p.down = !!down;
-    p.x = p.sx + this.cam.x; p.y = p.sy;
+    var p = this.player.ptr, Z = BAL.ZOOM; p.sx = U.clamp(sx, 0, this.viewW * Z); p.sy = U.clamp(sy, 0, H); p.down = !!down;
+    p.x = p.sx / Z + this.cam.x; p.y = p.sy / Z + this.cam.y;
   };
+  // CR-4: world <-> screen (logical px of the 1920 x 1080 view)
+  P.scrX = function (wx) { return (wx - this.cam.x) * BAL.ZOOM; };
+  P.scrY = function (wy) { return (wy - this.cam.y) * BAL.ZOOM; };
+  P.worldX = function (sx) { return sx / BAL.ZOOM + this.cam.x; };
+  P.worldY = function (sy) { return sy / BAL.ZOOM + this.cam.y; };
+  P.viewH = function () { return BAL.VIEW_H / BAL.ZOOM; };
   // world coordinates
   P.teleport = function (x, y) {
     var p = this.player, yb = this.yBounds(); p.x = x; p.y = U.clamp(y, yb[0], yb[1]); y = p.y; /* R-OE-46: the reach clamp applies at once, a same-frame read already shows it */ p.vx = p.vy = 0; p.kbT = 0;
     if (p.airborne) { p.airborne = false; p.jump = null; }
-    this.snapCamera();
-    p.ptr.sx = x - this.cam.x; p.ptr.sy = y; p.ptr.x = x; p.ptr.y = y;
+    this.snapCamera(); this.snapCameraY();
+    p.ptr.sx = this.scrX(x); p.ptr.sy = this.scrY(y); p.ptr.x = x; p.ptr.y = y;
   };
-  P.setView = function (w) { this.viewW = U.clamp(w, BAL.VIEW_W_MIN, BAL.VIEW_W_MAX); this.snapCamera(); };
+  P.setView = function (w) { this.viewW = U.clamp(w, BAL.VIEW_W_MIN / BAL.ZOOM, BAL.VIEW_W_MAX / BAL.ZOOM); this.snapCamera(); this.snapCameraY(); };
   P.camMax = function () { return this.side ? 1e12 : Math.max(0, W - this.viewW); };
   // camera: scroll-x only, follow lerp 0.1, dead zone +-290 around the view centre, clamped to the world
   P.snapCamera = function () {
@@ -194,7 +207,21 @@
     else if (p.x - cx < -BAL.camera.dead) c.x = p.x + BAL.camera.dead - this.viewW / 2;
     c.x = U.clamp(c.x, 0, this.camMax());
   };
+  /* CR-4 (R-OE-49): vertical follow. View top ty in [0, 216]: target clamp(player.y - 432, 0, 216), lerp 0.12, dead zone +-100 around it (not at the two ends: the seabed
+     shows the sand strip, the top shows the sky); worlds 1-6: ty = 0 while the mouth is within 200 units of the waterline or the player is airborne (the sky band and the jump arc stay in view) */
+  P.camYTarget = function (hold) {
+    var p = this.player, C = BAL.CAM_Y, raw = U.clamp(p.y - C.centre, 0, C.topMax);
+    if (!this.deep && (p.airborne || p.y - this.waterY <= C.lookUpWithin)) return 0;
+    if (raw <= 0 || raw >= C.topMax || hold === undefined) return raw;
+    return Math.abs(raw - this.cam.y) > C.dead ? raw - C.dead * U.sign(raw - this.cam.y) : this.cam.y;
+  };
+  P.snapCameraY = function () { this.cam.y = this.camYTarget(); };
+  P.updateCameraY = function (dt) {
+    var ty = this.camYTarget(true);
+    this.cam.y = U.clamp(this.cam.y + (ty - this.cam.y) * (1 - Math.pow(1 - BAL.CAM_Y.lerp, dt * 60)), 0, BAL.CAM_Y.topMax);
+  };
   P.updateCamera = function (dt) {
+    this.updateCameraY(dt);
     if (this.side) { this.snapCamera(); return; }
     var p = this.player, c = this.cam, cx = c.x + this.viewW / 2, tx = c.x;
     if (p.x - cx > BAL.camera.dead) tx = p.x - BAL.camera.dead - this.viewW / 2;
@@ -212,7 +239,7 @@
   P.pmax = function () { return BAL.maxSpeedBL * this.player.len; };
   P.jumpEligible = function () {
     var p = this.player;
-    return !p.airborne && p.cooldown <= 0 && !this.dying && !this.ended && (p.y - this.waterY) <= (this.side ? BAL.BODY.jumpBL.side : BAL.BODY.jumpBL.classic) * p.len;
+    return !this.deep && !p.airborne && p.cooldown <= 0 && !this.dying && !this.ended && (p.y - this.waterY) <= (this.side ? BAL.BODY.jumpBL.side : BAL.BODY.jumpBL.classic) * p.len;
   };
 
   /* ---- damage, bump, knockback ---- */
@@ -373,10 +400,11 @@
     if (this.side) return this.stepSide(dt);
     if (this.halted || this.ended === 'win') return;
     this.stepNo++; this.t += dt;
-    this.player.ptr.x = this.player.ptr.sx + this.cam.x;   // a held pointer follows the scrolling view
+    this.player.ptr.x = this.player.ptr.sx / BAL.ZOOM + this.cam.x; this.player.ptr.y = this.player.ptr.sy / BAL.ZOOM + this.cam.y;   // a held pointer follows the scrolling view
     this.updateEnv(dt);
     this.updatePlayer(dt);
     this.updateCamera(dt);
+    this.stepBoss(dt);
     if (this.evtPending && this.t >= this.evtPending.at && !this.dying) { var pe = this.evtPending; this.evtPending = null; this.startEvent(pe.id); }
     if (!this.dying) {
       this.updateObjs(dt);

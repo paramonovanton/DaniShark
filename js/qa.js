@@ -53,7 +53,7 @@
       if (st && s.jumpEligible && s.jumpEligible() && Math.abs(st.x - p.x) < 240) { s.jump(st.x > p.x ? 1 : -1); return; }
       goal = best ? [best.x + (best.vx || 0) * 0.3, best.y + (best.vy || 0) * 0.3] : [p.x, OE.BAL.playerStart.y];
       if (s.side) { if (p.y > goal[1] + 30 && s.t - lastTap > 0.35) { s.sideTap(); tapped(); } return; }
-      s.setPointer(goal[0] - s.cam.x, goal[1], true);
+      s.setPointer(s.scrX(goal[0]), s.scrY(goal[1]), true);
     }
     var QA = {
       version: 1,
@@ -81,17 +81,17 @@
         return true;
       },
       hold: function (x, y) { return QA.pointer(x, y, true); },
-      release: function () { var p = sim() ? sim().player.ptr : { x: 0, y: 0 }; return QA.pointer(p.x, p.y, false); },
+      release: function () { var p = sim() ? sim().player.ptr : { sx: 0, sy: 0 }; return QA.pointer(p.sx, p.sy, false); },
       // quick tap on the arena (defaults to the player's position)
       tapArena: function (x, y, gapMs) {
         if (gapMs) QA.step(gapMs);                                                       // explicit sim-time gap since the previous action
-        var s = sim(); if (s && x === undefined) { x = s.player.x - s.cam.x; y = s.player.y; }   // screen coordinates
+        var s = sim(); if (s && x === undefined) { x = s.scrX(s.player.x); y = s.scrY(s.player.y); }   // screen coordinates (logical px of the 1920 x 1080 view)
         var G = ctx.input.gesture, t = performance.now(); G.down(x, y, t); G.up(x, y, t + 60); down = false; frame(); return true;
       },
       swipe: function (dir, px, ms) {
         px = px === undefined ? 120 : px; ms = ms === undefined ? 200 : ms;
         if (game.mode === 'main' && (dir === 'left' || dir === 'right')) { ui.carouselStep(dir === 'left' ? 1 : -1); return true; }
-        var s = sim(), G = ctx.input.gesture, x = s ? s.player.x - s.cam.x : 960, y = s ? s.player.y : 600, t = performance.now(), dx = dir === 'left' ? -px : (dir === 'right' ? px : 0), dy = dir === 'up' ? -px : (dir === 'down' ? px : 0);
+        var s = sim(), G = ctx.input.gesture, x = s ? s.scrX(s.player.x) : 960, y = s ? s.scrY(s.player.y) : 600, t = performance.now(), dx = dir === 'left' ? -px : (dir === 'right' ? px : 0), dy = dir === 'up' ? -px : (dir === 'down' ? px : 0);
         G.down(x, y, t); G.move(x + dx / 2, y + dy / 2, t + ms / 2); G.up(x + dx, y + dy, t + ms); down = false; frame(); return true;
       },
       key: function (name) { return ctx.input.key(name); },
@@ -111,11 +111,14 @@
       clearSpawns: function (freeze) { var s = sim(); if (!s || !s.clearSpawns) return false; s.clearSpawns(!!freeze); frame(); return true; },
       // CR-3 hooks: setForm(f) = level GP of form f (events and rewards as in play), setBonusTimer(s), windowBlur() = the frame lost focus (auto-pause)
       setForm: function (f) { if (sim()) { sim().setForm(f); game.drainSim(); } frame(); return true; },
-      // spec v4.2: applied at once while the bonus phase is active; otherwise stored and applied when the bonus starts (it survives the 2 s goal banner; 9999 keeps the bonus open)
-      setBonusTimer: function (v) { var r = game.run, n = Math.max(0, Number(v) || 0); if (r && r.bonus) { r.bonusT = n; frame(); return true; } game.bonusOverride = n; frame(); return false; },
+      // CR-4 (spec v5): the bonus timer and its hook are removed; setZoom(z) sets BAL.ZOOM (clamped 1.2 .. 1.3) and re-fits the view; audioLog() = the voice log; setSound(on) = the Sound toggle
+      // CR-4 v5.1 (R-OE-53): eat the stunned boss of the finale now (false when there is no finale)
+      eatBoss: function () { var s = sim(), ok = !!(s && s.eatBoss && s.eatBoss()); game.drainSim(); frame(); return ok; },
+      setZoom: function (z) { OE.BAL.ZOOM = Math.max(1.2, Math.min(1.3, Number(z) || 1.25)); ctx.fit(); frame(); return OE.BAL.ZOOM; },
+      audioLog: function () { return OE.Audio ? OE.Audio.voiceLog.slice() : []; },
+      setSound: function (on) { game.save.settings.sound = !!on; OE.Audio.setSettings(game.save.settings); game.commit(); frame(); return !!on; },
       windowBlur: function () { game.focusLost(); frame(); return true; },
-      // test aids: a different goal form for this level (the goal banner / bonus rules follow it), and no automatic end at goal + 2 (the Finish button and the timer still end the level)
-      setGoalForm: function (f) { var s = sim(); if (!s) return false; f = Math.max(1, Math.min(8, Math.round(f))); s.goalForm = f; s.goalGP = OE.Model.gpForForm(f); if (s.form < f) s.goalReached = false; frame(); return true; },
+      // test aid (CR-4 v5.1): noAutoEnd(true) stops the end of the level at the Kraken (the setGoalForm hook is removed: every level ends at the Kraken)
       noAutoEnd: function (on) { game.noAutoEnd = on !== false; return true; },
       setNoAutoEnd: function (on) { return QA.noAutoEnd(on); },
       // emulate a touch phone (pointer coarse) or a desktop for the rotate prompt; null = the real device
