@@ -26,7 +26,7 @@
     // CR-4 (R-OE-49): viewW = the logical width of the stage; the arena shows viewW / ZOOM world units (k = canvas px per world unit already contains the zoom)
     var logicW = viewW || BAL.DESIGN_W;
     this.viewW = logicW / BAL.ZOOM;
-    var pw = Math.round(cssW * dpr); if ((OE.Browser && OE.Browser.tier) !== 'desktop') pw = Math.min(pw, 1280);          // mobile tier: the arena canvas never exceeds 1280 px wide (3.7 MB); CSS scales it to the screen (memory budget)
+    var pw = Math.round(cssW * dpr); if ((OE.Browser && OE.Browser.tier) !== 'desktop') pw = Math.min(pw, 1152);          // mobile tier: the arena canvas never exceeds 1152 px wide (2.9 MB at 16:9; QA round 12); CSS scales it to the screen (memory budget)
     this.cv.width = pw; this.cv.height = Math.round(pw * BAL.VIEW_H / logicW); this.k = this.cv.width / this.viewW;
   };
   P.addPart = function (o) { this.parts.push(o); if (this.parts.length > 500) this.parts.shift(); };

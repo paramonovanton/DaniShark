@@ -416,7 +416,10 @@
         this.thrT2 = 0.5;
         var liveT = 0, liveN = 0, liveP = 0;
         for (qq = 0; qq < this.creatures.length; qq++) { var tc = this.creatures[qq]; if (tc.dead || tc.faded || tc.def.k === 'pas' || tc.role === 'passive') continue;
-          if (tc.persist && tc.role !== 'predator' && tc.role !== 'hazard' && Math.abs(tc.x - this.player.x) > this.viewW * 0.6) { tc.dead = true; continue; }          // a threat the player has outgrown and that is out of sight is retired (the next one is sized for the current form)
+          if (tc.persist && tc.role !== 'predator' && tc.role !== 'hazard' && Math.abs(tc.x - this.player.x) > this.viewW * 0.6) {
+            if (scripted && tc.def.k === 'haz' && !tc.bossAtk) { tc.size = this.rosterSize(tc.type, tc.def); this.sizeCreature(tc); tc.role = this.roleOf(tc); }          // QA round 12 (UC-57): on a boss level the streams are held, so an outgrown hazard out of sight is re-sized for the current form (same body, no new spawn event)
+            else { tc.dead = true; continue; }
+          }          // a threat the player has outgrown and that is out of sight is retired (the next one is sized for the current form)
           liveN++; if (tc.role === 'predator') liveP++; if (tc.role === 'predator' || tc.role === 'hazard') liveT++; }
         if (!busy && (scripted || this.hazT === undefined || this.hazT < 0.75 * D.haz) && liveT / Math.max(1, liveN) < (scripted ? 0.4 : BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[0]) && liveT < (scripted ? 24 : BAL.GROWTH.CLASSIC_THREAT_MAX)) {      /* the boss levels (the director supplies the predators) top up hazards towards 40 % (the crossers do not stay), the other levels only below 20 % and only in the second half of a stream interval (a top-up brings the next stream event forward, it does not add to the table's events) */ var tid = (scripted || liveP >= D.maxpred) && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true); this.spawnSpecial(tid, 1); this.ev.threat++; if (CR[tid].k === 'haz') this.hazT = D.haz; else this.predT = D.pred;      /* a top-up counts as the stream's event: the events stay on the table */ }
         else if (liveT > 1 && liveT / liveN > BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[1]) {      // too many: recycle the farthest threat that is outside the view

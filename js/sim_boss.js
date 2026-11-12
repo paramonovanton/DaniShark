@@ -96,7 +96,9 @@
     return this.viewRight() + Math.max(BAL.SIDE.spawnAhead, closing * BB.TELEGRAPH_S);
   };
   P.bossTelegraph = function (y, s, kind) {
-    var id = this.nextId++; this.bossTele.push({ id: id, y: y, until: this.t + s, u0: this.t + s, kind: kind || 'lane' }); return id;
+    var id = this.nextId++; this.bossTele.push({ id: id, y: y, until: this.t + s, u0: this.t + s, kind: kind || 'lane' });
+    this.bossPostT = Math.max(this.bossPostT || 0, this.t + s + BAL.BOSS_POST_HOLD);          // QA round 12: the hold lasts until the attack has arrived and 1.5 s more (plumes, lava strips, spines: not bodies)
+    return id;
   };
   // run fn after `delay` seconds (the telegraph)
   P.bossAtS = function (delay, fn) { var it = this.bossAt(delay, fn); it.stag = true; return it; };       // a staggered second body: counts as a pending wave for the director timers
@@ -142,7 +144,7 @@
   // the ones inside it that would make the wave unfair are removed after 0.5 s of waiting. A wave is therefore committed within about 1 s; the telegraph is shown for a wave that is going to come.
   P.bossBusy = function () {
     if (!this.bossInfo || !this.bossIsScripted() || this.finale) return false;
-    if (this.bossHoldT > this.t || this.bossQ.length || this.bossTele.length || this.bossSoon()) return true;
+    if (this.bossHoldT > this.t || (this.bossPostT || 0) > this.t || this.bossQ.length || this.bossTele.length || this.bossSoon()) return true;
     var i, c; for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; if (c.bossAtk && !c.dead && c.role !== 'prey' && (this.side ? c.x > this.player.x - 400 : c.x + c.len * 0.5 > this.cam.x)) return true; }       // Side: until the body is well behind the player; Classic: while any of it is in the view
     return false;
   };
