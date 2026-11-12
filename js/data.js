@@ -15,8 +15,10 @@
     // CR-3 / R-OE-46 (BUG-U1): the player centre is clamped to [waterY + bodyR, seabedY - bodyR]; the floor line y = seabedY is the resting line of the player AND of every floor creature (centre y = seabedY - its own bodyR)
     hearts: 3, eatRatio: 1.15,
     maxGP: 450,               // CR-3: level GP 0..450, restarts at 0 every level
-    // CR-4 (R-OE-06 / 28 / 51): distinct size steps. S at the start of form f = 10 x SIZE_STEP^(f-1) (10, 12, 14.4 ... 35.8); inside a form S grows by IN_FORM of the gap to the next start; len = LEN_PER_S x S
-    SIZE_STEP: 1.2, IN_FORM: 0.2, LEN_PER_S: 9,
+    // CR-4 (R-OE-06 / 28 / 51): distinct size steps. S at the start of form f = 10 x SIZE_STEP^(f-1) (10, 12.5, 15.6 ... 47.7; length 90, 112.5, 140.6, 175.8, 219.7, 274.7, 343.3, 429.2, at most 445); inside a form S grows by IN_FORM of the gap to the next start; len = LEN_PER_S x S
+    SIZE_STEP: 1.25, IN_FORM: 0.15, IN_FORM_SHARE: 0.15, LEN_PER_S: 9,      // spec v5.4: +15 % of the gap inside a form, so every evolution is a step of +20.5 %
+    TINT: { PEER: { from: 0.87, to: 1.15, color: [255, 230, 90], alpha: 0.25 }, THREAT: { from: 1.15, color: [255, 40, 40], alphaAt: [[1.15, 0.25], [2.0, 0.6], [3.0, 0.8]], outlineUnits: [[1.15, 2], [2.0, 3]], outlineColor: 'rgba(90,0,0,0.95)' } },      // role tint of the creatures by size relative to the player (hazards keep their orange pulse)
+    FLOOR_OBSTACLES: { bottomY: 990, tol: 2 },                                         // every obstacle that stands on the seabed has its bottom edge at y = 990 +/- 2
     ZOOM: 1.25,                // CR-4 (R-OE-49): constant arena zoom (tunable 1.2 .. 1.3); the visible world is the 1920 x 1080 view / ZOOM
     CAM_Y: { dead: 100, lerp: 0.12, topMax: 216, centre: 432, lookUpWithin: 200 },
     maxSpeedBL: 3.0,          // player max speed, body lengths per second
@@ -27,7 +29,7 @@
     loadMaxS: 12,                           // BUG-U3: the loading screen ends after this many seconds even if an image request never answers
     levelStartS: 2.0, assetWaitS: 5, evoAutoS: 4.0, eventBannerS: 2.5, lockedToastS: 2.5, failDelayS: 0.8,
     camera: { lerp: 0.1, dead: 290 },
-    playerLenMin: 90, playerLenMax: 335, creatureLen: [26, 760], thicknessMax: 0.4,
+    playerLenMin: 90, playerLenMax: 445, PLAYER_LEN_MAX: 445, creatureLen: [26, 1000], CREATURE_LEN_MAX: 1000, thicknessMax: 0.4,
     playerStart: { x: 960, y: 660 },
     bands: { surface: [370, 560], mid: [560, 800], deep: [800, 960], floor: [960, 1040] },
     spawnMarginX: 240, spawnNear: 680, spawnFar: 930, despawnX: 2400, detectCap: 1000,
@@ -43,7 +45,7 @@
     PACE: {1: [1.46, 1.57, 1.95, 2.86, 50.73], 2: [1.89, 2.03, 2.5, 2.56, 5.4], 3: [5.08, 4.31, 4.78, 5.5, 26.68], 4: [2.74, 3.6, 4.12, 4.93, 6.93], 5: [1.16, 1.37, 1.55, 1.81, 2.27], 6: [1.91, 2.66, 1.83, 2.27, 2.42], 7: [4.49, 2.63, 3.78, 3.89, 4.42]},   // Side-scroller prey interval factor per level, fitted (mean of 4 seeds) with tests/bot.js (OE_BOT_SIDE, skilled y control, immortal) to the Kraken target (7 x step + 15 s) x level factor (CR-4 v5.1; the boss levels are partly fed by the boss director's schools)
     PACE_C: {1: [0.5, 0.5, 0.5, 0.5, 0.5], 2: [0.5, 0.5, 0.5, 0.5, 0.5], 3: [0.5, 0.5, 0.5, 0.5, 0.5], 4: [0.5, 0.5, 0.5, 0.5, 0.5], 5: [0.5, 0.5, 0.5, 0.5, 0.5], 6: [0.5, 0.5, 0.5, 0.5, 0.5], 7: [0.5, 0.5, 0.5, 0.5, 0.5]},   // Classic prey interval factor per level (neutral 0.5; the pacing is fitted with GP_C)
     BUDGET_C: {1: [1, 1, 1, 1, 1], 2: [1, 1, 1, 1, 1], 3: [1, 1, 1, 1, 1], 4: [1, 1, 1, 1, 1], 5: [1, 1, 1, 1, 1], 6: [1, 1, 1, 1, 1], 7: [1, 1, 1, 1, 1]},   // Classic: factor on the prey budget (foodTarget) per level (1 = the level table x BAL.foodWorldMul)
-    GP_C: {1: [1.56, 1.7, 1.45, 1.51, 0.65], 2: [1.47, 2.41, 2.28, 1.27, 0.7], 3: [1.17, 0.67, 0.55, 0.47, 0.42], 4: [0.78, 0.69, 0.64, 0.46, 0.36], 5: [1.41, 1.35, 1.41, 1.15, 0.85], 6: [1.06, 0.87, 0.92, 0.75, 0.62], 7: [1.33, 1.17, 1.13, 1.01, 1.1]},   // Classic: factor on the GP of a bite per level, fitted with tests/bot.js to the Kraken target (7 x step + 15 s) x level factor = 240 .. 386 s (CR-4 v5.1; the pacing knob that does not depend on spawn luck)
+    GP_C: {1: [1.56, 1.7, 1.45, 1.51, 0.65], 2: [1.47, 2.0, 2.28, 1.27, 0.7], 3: [1.17, 0.67, 0.55, 0.47, 0.42], 4: [0.78, 0.69, 0.64, 0.46, 0.36], 5: [1.41, 1.35, 1.41, 1.15, 0.85], 6: [1.06, 0.87, 0.92, 0.75, 0.62], 7: [1.33, 1.17, 1.13, 1.01, 1.1]},   // Classic: factor on the GP of a bite per level, fitted with tests/bot.js to the Kraken target (7 x step + 15 s) x level factor = 240 .. 386 s (CR-4 v5.1; the pacing knob that does not depend on spawn luck)
     GROWTH: {"SPAWN_WEIGHTS": {"prey": 0.55, "peer": 0.15, "threat": 0.30}, "MIN_THREAT_REL": 1.25, "CLASSIC_THREAT_BAND": [0.25, 0.40], "CLASSIC_THREAT_BAND_SANITY": [0.2, 0.55], "SIDE_THREAT_BAND_SANITY": [0.15, 0.7], "CLASSIC_THREAT_MAX": 12,"FORM_GP": [0, 60, 120, 180, 240, 300, 360, 420], "GP_MAX": 450, "SURFACE_REWARD_BASE_GP": 60, "GOAL_FORM": 8, "KRAKEN_CELEBRATION_S": 2.0, "KRAKEN_BANNER_BOSS_S": 1.2, "HEART_ON_EVOLVE": 1, "HEART_ON_EVOLVE_FORMS": [3, 5, 7], "HEARTS_MAX": 3, "EVO_LIGHT_S": 1.2, "EVO_INVULN_S": 1.5, "STEP_TIME_S_BY_WORLD": {"1": 36, "2": 38, "3": 40, "4": 42, "5": 44, "6": 46, "7": 48}, "LEVEL_DURATION_FACTOR": [0.9, 0.95, 1.0, 1.05, 1.1],      // CR-4 v5.1: target time to Kraken = (7 x step time + 15) x level factor (240 .. 386 s, average 309 s)
      "PREY_INTERVAL_MULT_BY_WORLD": {"1": 1.0, "2": 0.95, "3": 0.9, "4": 0.85, "5": 0.8, "6": 0.75, "7": 0.7}, "EVENT_DELAY_S": 20, "EVENT_START_FORM": {"pirate_treasure": 5, "aircraft_challenge": 6, "island_destruction": 6, "cargo_ship": 7}, "SURFACE_POOL": {"world_list_eligible": 0.5, "teaser_next_tier": 0.25, "form_generic": 0.25}},
     BODY: { bodyR: 0.26, mouthR: 0.20, mouthOffset: 0.40, jumpBL: { side: 0.6, classic: 1.5 }, lenEaseS: 0.15, evoEaseS: 0.4, eatPopPct: 4, eatPopS: 0.2 },

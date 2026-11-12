@@ -37,6 +37,17 @@
     c.br = c.len * clamp((c.def.asp || 0.4) * 0.5 + 0.04, 0.12, 0.3);
     if (c.brCap && c.br > c.brCap) c.br = c.brCap;                                  // CR-4: a scripted boss body has a collider that always leaves the corridor of the gap rule (sim_boss.js capBr)
   };
+  // role tint of a creature (spec v5.4, BAL.TINT): peers light yellow, threats red, stronger the bigger they are relative to the player; prey and hazards none
+  P.tintOf = function (c) {
+    var T = BAL.TINT, ratio = c.size / this.S, a, i, A = T.THREAT.alphaAt, O = T.THREAT.outlineUnits, out = 0, k;
+    if (c.faded || c.dead || c.def.k === 'pas') return { kind: 'none', alpha: 0, outline: 0, ratio: ratio };
+    if (c.role === 'peer') return { kind: 'peer', alpha: T.PEER.alpha, outline: 0, ratio: ratio };
+    if (c.role !== 'predator') return { kind: 'none', alpha: 0, outline: 0, ratio: ratio };
+    a = A[A.length - 1][1];
+    for (i = 1; i < A.length; i++) if (ratio < A[i][0]) { k = (ratio - A[i - 1][0]) / (A[i][0] - A[i - 1][0]); a = A[i - 1][1] + (A[i][1] - A[i - 1][1]) * Math.max(0, k); break; }
+    for (i = 0; i < O.length; i++) if (ratio >= O[i][0]) out = O[i][1];
+    return { kind: 'threat', alpha: Math.round(a * 1000) / 1000, outline: out, ratio: ratio };
+  };
   P.roleOf = function (c) {
     var def = c.def, S = this.S;
     if (c.faded) return 'ghost';

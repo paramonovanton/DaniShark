@@ -8,7 +8,7 @@
   var GR = BAL.GROWTH;
 
   /* ---- growth, size, forms (CR-3: per level, level GP 0..450, restarts at 0) ---- */
-  // CR-4: S at the start of form f = 10 x 1.2^(f-1); inside a form S grows linearly with GP by IN_FORM (20 %) of the gap to the next start, then steps at the evolution
+  // CR-4 (playtest: step 1.25): S at the start of form f = 10 x 1.25^(f-1); inside a form S grows linearly with GP by IN_FORM (20 %) of the gap to the next start, then steps at the evolution
   function sizeStart(f) { return 10 * Math.pow(BAL.SIZE_STEP, f - 1); }
   function sizeForGP(gp) {
     gp = U.clamp(gp, 0, BAL.maxGP);
@@ -30,7 +30,7 @@
     return U.clamp((gp - GR.FORM_GP[f - 1]) / (GR.FORM_GP[f] - GR.FORM_GP[f - 1]), 0, 1);
   }
   function goalForm() { return GR.GOAL_FORM; }                                // CR-4 v5.1: every level ends at the Kraken (form 8, 7 evolutions)
-  // player length in world units (CR-4, R-OE-28): 9 x S = 90 (Tiny Fish) .. 322.5 (Kraken at its start), at most 335; on screen x ZOOM
+  // player length in world units (CR-4, R-OE-28): 9 x S = 90 (Tiny Fish) .. 429.2 (Kraken at its start, about 451 at the end of the level), at most 445; on screen x ZOOM
   function lenPx(S) { return U.clamp(BAL.LEN_PER_S * S, BAL.playerLenMin, BAL.playerLenMax); }
 
   /* ---- save ---- */

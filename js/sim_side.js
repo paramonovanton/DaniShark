@@ -133,7 +133,7 @@
     return this.lanes[lane];
   };
   P.closingOf = function (v) { return Math.min(SD.maxClosing, v + this.fwdBase()); };
-  P.aheadX = function (closing) { return this.viewRight() + Math.max(SD.spawnAhead + 0.8 * this.fwd, closing * SD.telegraphS); };       // CR-4 round 9: >= 240 units beyond the edge even a good 0.8 s later (the view moves on at the forward speed)
+  P.aheadX = function (closing) { return this.viewRight() + Math.max(SD.spawnAhead + 1.2 * this.fwd, closing * SD.telegraphS); };       // CR-4 round 9: >= 240 units beyond the edge even a good 0.8 s later (the view moves on at the forward speed)
 
   // build the linear segments of a pattern; a segment {t, vx, vy} starts at creature time t
   P.initMover = function (c, pat, v, sm) {
@@ -420,6 +420,18 @@
   }
   // fairness for freshly spawned threats: a free corridor (>= 300 px + margin) among all threats that reach the player within about 1.5 s of them,
   // and at most 2 spawn batches inside a 300 px vertical window
+  // the free gap between the inflated blocks (every body grows by the player's radius, blockHalf) that a threat must leave: corridor + margin. A body so big that this cannot be met even with
+  // the body alone at the edge of the water column (the predators of the big forms) has to leave what QA's metric asks for: 310 units between the body edges (the player's own radius is
+  // already inside the inflated block); if even that is impossible the species is refused
+  P.needGap = function (extra, fresh) {
+    var need = SD.corridor + extra, i, h = 0, it, brMax = 0, feasible, raw;
+    for (i = 0; fresh && i < fresh.length; i++) { it = this.threatItem(fresh[i]); h = Math.max(h, it.hi - it.lo); brMax = Math.max(brMax, fresh[i].br); }
+    if (!h) return need;
+    feasible = FLOOR - (this.waterY + 20) - h;
+    if (need <= feasible - 8) return need;
+    raw = Math.max(0, SD.corridor + 10 - (this.player.r - 0.1 * brMax));
+    return raw <= feasible ? raw : need;
+  };
   P.fairOK = function (fresh) {
     var win = SD.predWindow[2] + 0.5, items = [], i, j, c, ex = this.threatsList(fresh), mine = [];
     for (i = 0; i < ex.length; i++) items.push(this.threatItem(ex[i]));
@@ -436,7 +448,7 @@
       var all = items.concat(mine), near = all.filter(function (q) { return Math.abs(q.t - mine[i].t) < win; }), batches = {}, nb = 0;
       near.forEach(function (q) { if (!q.wall && Math.abs(q.y - mine[i].y) <= SD.predWindow[1] / 2 && !batches[q.b]) { batches[q.b] = 1; nb++; } });
       if (nb > SD.predWindow[0]) return false;
-      if (bestGap(near.map(function (q) { return [q.lo, q.hi]; }), this.waterY + 20, FLOOR) < SD.corridor + 40) return false;
+      if (bestGap(near.map(function (q) { return [q.lo, q.hi]; }), this.waterY + 20, FLOOR) < this.needGap(40, fresh)) return false;
     }
     return true;
   };
@@ -537,11 +549,12 @@
       if (times.length) { timesBy.push({ f: f, times: times }); tmax = Math.max(tmax, times[times.length - 1] + DT); }
     });
     if (!timesBy.length) return true;
+    var needG = self.needGap(CORR_MARGIN, fresh);
     function bad(list, wl) {
       var its = list.map(function (c) { return { c: c, tr: self.trajectory(c, tmax) }; }), k, j, f;
       for (j = 0; j < timesBy.length; j++) for (k = 0; k < timesBy[j].times.length; k++) {
         f = self.fieldAt(its, wl, timesBy[j].times[k], timesBy[j].f);
-        if (f.gap < SD.corridor + CORR_MARGIN || f.maxPred > SD.predWindow[0]) return true;
+        if (f.gap < needG || f.maxPred > SD.predWindow[0]) return true;
       }
       return false;
     }
@@ -566,7 +579,7 @@
       fresh = this.creatures.slice(n0);
       fresh.forEach(function (c) { c.batch = batch; });
       // a big single straight mover (giant squid, leviathan...) leaves a free corridor on one side only when it sits near the top or the bottom of the play band: fit its lane
-      if (fresh.length === 1 && fresh[0].br > 90 && sm.p !== 'FLOOR' && sm.p !== 'AMBUSH_DASH' && sm.p !== 'STATIC' && sm.p !== 'BOSS' && (fresh[0].br > 130 || ((sm.p === 'STRAIGHT' || sm.p === 'ONE_TURN') && !(fresh[0].mv && fresh[0].mv.segs && fresh[0].mv.segs.some(function (sg) { return sg.vy; }))))) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, SD.corridor + CORR_MARGIN + 30);
+      if (fresh.length === 1 && fresh[0].br > 90 && sm.p !== 'FLOOR' && sm.p !== 'AMBUSH_DASH' && sm.p !== 'STATIC' && sm.p !== 'BOSS' && (fresh[0].br > 130 || ((sm.p === 'STRAIGHT' || sm.p === 'ONE_TURN') && !(fresh[0].mv && fresh[0].mv.segs && fresh[0].mv.segs.some(function (sg) { return sg.vy; }))))) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, this.needGap(CORR_MARGIN + 30, fresh));
       if (fresh.length && this.fairOK(fresh) && this.fairOver(fresh, null, strict)) { this.fairFails = 0; return fresh[0]; }
       this.creatures.length = n0;
     }

@@ -537,8 +537,8 @@
       out.blockers = s.blockerList();                                                         // wall / swall / column / mine (Side) and struct / shockring / tentacle (Classic) with glowPx, pocketR, contrast, warnLead, visible
       out.gpC = s.side ? 1 : (((BAL.GP_C || {})[r.world] || [])[r.level - 1] || 1);              // the pacing factor on the GP of a bite (Side-scroller 1.0, Classic the per-level value)
       out.controlMode = s.controlMode; out.forwardSpeed = s.side ? s.fwd : 0; if (true) { out.threats = s.threatMarkers(); out.markers = out.threats.map(function (m) { var sy = s.scrY(m.y); return { id: m.id, kind: m.kind, y: m.y, screenY: Math.max(190, Math.min(1000, sy)), edge: sy < 190 ? 'up' : (sy > 1000 ? 'down' : null) }; }); }
-      out.coinsCollected = s.coins; out.replay = r.replay; out.waterY = s.waterY; out.invuln = p.invuln;
-      for (i = 0; i < s.creatures.length; i++) { var c = s.creatures[i]; out.creatures.push({ id: c.id, type: c.type, x: c.x, y: c.y, vx: c.vx, vy: c.vy, pattern: c.mv ? c.mv.pat : (s.side ? '' : 'CLASSIC'), size: c.size, len: c.len, role: c.role, state: c.state, hidden: c.hidden }); }
+      out.obstacles = s.obstacleList(); out.coinsCollected = s.coins; out.replay = r.replay; out.waterY = s.waterY; out.invuln = p.invuln;
+      for (i = 0; i < s.creatures.length; i++) { var c = s.creatures[i]; out.creatures.push({ id: c.id, type: c.type, x: c.x, y: c.y, vx: c.vx, vy: c.vy, pattern: c.mv ? c.mv.pat : (s.side ? '' : 'CLASSIC'), size: c.size, len: c.len, role: c.role, state: c.state, hidden: c.hidden, tint: s.tintOf(c) }); }
       for (i = 0; i < s.surface.length; i++) { var q = s.surface[i]; out.surfaceTargets.push({ id: q.id, type: q.type, tier: q.tier, x: q.x, y: q.y, eligible: q.tier <= s.form, bites: q.biteN }); }
     }
     return out;

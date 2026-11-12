@@ -164,7 +164,7 @@
     }
   };
   P.drawZonesBack = function (ctx, sim) {
-    var i, z, t = this.t;
+    var i, z, t = this.t; this.wdn = sim.wdef.n;
     for (i = 0; i < sim.zones.length; i++) {
       z = sim.zones[i];
       if (z.kind === 'current') {
@@ -177,12 +177,12 @@
         ctx.restore();
       } else if (z.kind === 'vent') {
         var vimg = this.sp('OBS_Vent');
-        if (vimg) this.spr(ctx, vimg, z.x, BAL.seabedY + 6, 150, 'b');
+        if (vimg) { this.mound(ctx, z.x, 150, this.wdn); this.spr(ctx, vimg, z.x, BAL.FLOOR_OBSTACLES.bottomY, 150, 'b'); }
         else { ctx.fillStyle = '#3a2a22'; ctx.beginPath(); ctx.moveTo(z.x - 60, BAL.seabedY); ctx.lineTo(z.x - 25, BAL.seabedY - 50); ctx.lineTo(z.x + 25, BAL.seabedY - 50); ctx.lineTo(z.x + 60, BAL.seabedY); ctx.fill(); }
         if (sim.ventActive(z)) { var gp = ctx.createLinearGradient(0, BAL.seabedY - 50, 0, BAL.seabedY - 650); gp.addColorStop(0, 'rgba(255,170,80,0.7)'); gp.addColorStop(1, 'rgba(255,170,80,0)'); ctx.fillStyle = gp; ctx.fillRect(z.x - 55, BAL.seabedY - 650, 110, 600); }
         else if (sim.ventWarn(z)) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; for (k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(z.x + Math.sin(t * 6 + k) * 14, BAL.seabedY - 80 - ((t * 140 + k * 40) % 200), 7, 0, TAU); ctx.fill(); } }
       } else if (z.kind === 'lava' && this.sp('OBS_Lava')) {
-        this.spr(ctx, this.sp('OBS_Lava'), z.x, z.y + z.h / 2 + 4, z.w * 1.08, 'b');
+        this.spr(ctx, this.sp('OBS_Lava'), z.x, BAL.FLOOR_OBSTACLES.bottomY, z.w * 1.08, 'b');
       } else if (z.kind === 'lava') {
         var lg = ctx.createLinearGradient(0, z.y - z.h / 2, 0, z.y + z.h / 2); lg.addColorStop(0, '#ffb43a'); lg.addColorStop(1, '#e8401a');
         ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(z.x - z.w / 2, z.y + z.h / 2); for (var xk = 0; xk <= z.w; xk += 30) ctx.lineTo(z.x - z.w / 2 + xk, z.y - z.h / 2 + Math.sin(t * 2 + xk * 0.05) * 6); ctx.lineTo(z.x + z.w / 2, z.y + z.h / 2); ctx.closePath(); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,230,120,0.9)'; ctx.stroke();
@@ -229,11 +229,11 @@
     switch (ob.kind) {
       case 'rock': case 'brock':
         img = this.sp(ob.kind === 'brock' ? 'OBS_Rock_Cracked' : (ob.id % 2 ? 'OBS_Rock_v1' : 'OBS_Rock_v2'), ROCK_TINT[n] || '#c8c8d0'); if (!img) return false;
-        this.spr(ctx, img, ob.x, ob.kind === 'rock' ? ob.y + r * 0.5 : ob.y + r * 0.9, r * 2.3, 'b'); return true;
-      case 'coral': img = this.sp(ob.id % 2 ? 'OBS_Coral_v1' : 'OBS_Coral_v2'); if (!img) return false; this.spr(ctx, img, ob.x, ob.y + r * 0.45, r * 2.4, 'b'); return true;
-      case 'anemone': img = this.sp('OBS_Anemone'); if (!img) return false; this.spr(ctx, img, ob.x, ob.y + 30, 120, 'b', Math.sin(t * 2 + ob.id) * 0.07); return true;
+        if (ob.kind === 'rock') this.mound(ctx, ob.x, r * 2.3, wd); this.spr(ctx, img, ob.x, ob.kind === 'rock' ? BAL.FLOOR_OBSTACLES.bottomY : ob.y + r * 0.9, r * 2.3, 'b'); return true;
+      case 'coral': img = this.sp(ob.id % 2 ? 'OBS_Coral_v1' : 'OBS_Coral_v2'); if (!img) return false; this.mound(ctx, ob.x, r * 2.4, wd); this.spr(ctx, img, ob.x, BAL.FLOOR_OBSTACLES.bottomY, r * 2.4, 'b'); return true;
+      case 'anemone': img = this.sp('OBS_Anemone'); if (!img) return false; this.mound(ctx, ob.x, 120, wd); this.spr(ctx, img, ob.x, BAL.FLOOR_OBSTACLES.bottomY, 120, 'b', Math.sin(t * 2 + ob.id) * 0.07); return true;
       case 'crevice': img = this.sp('OBS_Crevice', ROCK_TINT[n] || '#c8c8d0'); if (!img) return false; this.spr(ctx, img, ob.x, ob.y, 150, 'c'); return true;
-      case 'ruin': return this.slice9v(ctx, 'OBS_Ruin_Column', ob.x, ob.y, ob.w, ob.h);
+      case 'ruin': this.mound(ctx, ob.x, ob.w * 1.4, wd); return this.slice9v(ctx, 'OBS_Ruin_Column', ob.x, BAL.FLOOR_OBSTACLES.bottomY - ob.h / 2, ob.w, ob.h);
       case 'struct': return this.slice9v(ctx, 'OBS_Struct', ob.x, ob.y, ob.w, ob.h, '#c9a8ff');
       default: return false;
     }
@@ -257,10 +257,15 @@
     }
     if (fl) {
       h = 150; w = fl.width * h / fl.height; off = wrap(cam, w);
-      for (x = -off; x < VW; x += w) ctx.drawImage(fl, x, 980, w, h);
+      for (x = -off; x < VW; x += w) ctx.drawImage(fl, x, 968, w, h);                // 12 units above the nominal strip top: the bumpy surface then lies close to the line y = 990 the obstacles stand on
       any = true;
     }
     return any;
+  };
+  // a soft sand mound under an obstacle that stands on the seabed: it hides the gap between the line y = 990 and the bumpy floor art
+  P.mound = function (ctx, x, w, wd) {
+    var col = (wd && wd.floor) || (this.wdn && OE.WORLDS[this.wdn - 1].floor) || '#8a7a5a', y = BAL.FLOOR_OBSTACLES.bottomY;
+    ctx.save(); ctx.fillStyle = col; ctx.globalAlpha = 0.92; ctx.beginPath(); ctx.ellipse(x, y + 4, w * 0.5, 15, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(x, y + 8, w * 0.46, 9, 0, 0, TAU); ctx.fill(); ctx.restore();
   };
   P.drawRock = function (ctx, ob, wd) {
     if (this.drawObsArt(ctx, ob.kind === 'cracked' ? { x: ob.x, y: ob.y, r: ob.r, id: ob.id, kind: 'brock' } : ob, wd)) return;
@@ -305,7 +310,7 @@
       if (simg) {
         var sw = z.h * simg.width / simg.height, cnt = Math.max(1, Math.round(z.w / (sw * 0.75))), q;
         ctx.save(); ctx.globalAlpha = z.kind === 'kelp' ? 0.85 : 0.8;
-        for (q = 0; q < cnt; q++) this.spr(ctx, simg, z.x - z.w / 2 + (q + 0.5) * z.w / cnt, z.y + z.h / 2, Math.min(sw, z.w * 1.3 / Math.max(1, cnt) + 30), 'b', Math.sin(t * 1.3 + q * 1.7) * 0.04);
+        for (q = 0; q < cnt; q++) this.spr(ctx, simg, z.x - z.w / 2 + (q + 0.5) * z.w / cnt, BAL.FLOOR_OBSTACLES.bottomY, Math.min(sw, z.w * 1.3 / Math.max(1, cnt) + 30), 'b', Math.sin(t * 1.3 + q * 1.7) * 0.04);
         ctx.restore(); continue;
       }
       var n = z.kind === 'kelp' ? 9 : 6;
@@ -320,6 +325,22 @@
   };
 
   /* ---------------------------------------------------------------- entities */
+  // role tint (spec v5.4): the creature is drawn into a reusable scratch canvas (sprite or procedural fallback alike), tinted with source-atop, and composited back; threats also get a dark outline
+  // made from 8 offset copies of its silhouette. No cache per species: the only memory is the shared scratch canvas.
+  P.drawTinted = function (ctx, def, c, opts, tint) {
+    var R = c.len * 0.62 + 30, sk = Math.min(this.k, ((OE.Browser && OE.Browser.tier) !== 'desktop' ? 256 : 384) / (2 * R)), n = Math.max(8, Math.ceil(2 * R * sk)), A, B, a, b, col = tint.kind === 'peer' ? BAL.TINT.PEER.color : BAL.TINT.THREAT.color, i, o = tint.outline, ang;
+    if (!this.scrA) { this.scrA = document.createElement('canvas'); this.scrB = document.createElement('canvas'); }
+    A = this.scrA; B = this.scrB; if (A.width < n || A.height < n) { A.width = A.height = B.width = B.height = Math.max(n, 128); }
+    a = A.getContext('2d'); a.setTransform(1, 0, 0, 1, 0, 0); a.clearRect(0, 0, n, n); a.globalCompositeOperation = 'source-over'; a.globalAlpha = 1;
+    a.setTransform(sk, 0, 0, sk, R * sk, R * sk); Art.creature(a, def, opts);
+    a.setTransform(1, 0, 0, 1, 0, 0); a.globalCompositeOperation = 'source-atop'; a.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + tint.alpha + ')'; a.fillRect(0, 0, n, n); a.globalCompositeOperation = 'source-over';
+    if (o > 0) {
+      b = B.getContext('2d'); b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, n, n); b.globalCompositeOperation = 'source-over'; b.drawImage(A, 0, 0);
+      b.globalCompositeOperation = 'source-in'; b.fillStyle = BAL.TINT.THREAT.outlineColor; b.fillRect(0, 0, n, n); b.globalCompositeOperation = 'source-over';
+      for (i = 0; i < 8; i++) { ang = i * Math.PI / 4; ctx.drawImage(B, 0, 0, n, n, -R + Math.cos(ang) * o, -R + Math.sin(ang) * o, n / sk, n / sk); }
+    }
+    ctx.drawImage(A, 0, 0, n, n, -R, -R, n / sk, n / sk);
+  };
   P.drawCreature = function (ctx, c, sim) {
     var def = c.def, p = sim.player, role = c.role, d = U.dist(c.x, c.y, p.x, p.y);
     ctx.save(); ctx.translate(c.x, c.y);
@@ -344,7 +365,9 @@
     if (c.tilt) ang += c.tilt * 0.45;                                                     // Side-scroller: the nose tilts 0.3 s before a turn
     if (def.shape !== 'jelly' && def.shape !== 'ammonite' && def.shape !== 'crab') ctx.rotate(U.clamp(ang, -0.7, 0.7));
     if (def.shape === 'angler' || def.ai === 'ambush') { if (c.state === 'wait') ctx.globalAlpha = alpha * 0.95; }
-    Art.creature(ctx, def, { L: c.len, t: c.t + c.id * 0.7, mouth: (c.state === 'lunge' || c.state === 'burst' || c.state === 'rush' || c.state === 'chase') ? 1 : 0, red: near, inflated: c.inflated, retract: c.retract, state: c.state, hazard: role === 'hazard', snap: c.snapT > 0, speedAnim: 3 + sp / 50, ping: 0 });
+    var copts = { L: c.len, t: c.t + c.id * 0.7, mouth: (c.state === 'lunge' || c.state === 'burst' || c.state === 'rush' || c.state === 'chase') ? 1 : 0, red: near, inflated: c.inflated, retract: c.retract, state: c.state, hazard: role === 'hazard', snap: c.snapT > 0, speedAnim: 3 + sp / 50, ping: 0 };
+    var tint = sim.tintOf(c);
+    if (tint.kind !== 'none') this.drawTinted(ctx, def, c, copts, tint); else Art.creature(ctx, def, copts);
     ctx.restore();
   };
   P.drawPlayer = function (ctx, sim) {

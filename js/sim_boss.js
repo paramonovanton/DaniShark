@@ -109,7 +109,7 @@
   // QA's metric (UC-OE-76 / XR-OE-76-BOSS): over any 1.5 s look-ahead the bodies that overlap the player's column block [y - br, y + br] over the whole stretch they sweep while they overlap it;
   // the largest free gap of the play band must stay >= 300. The extents are computed from the straight lines the scripted bodies fly (walls and the other threats included).
   P.bossUnionFair = function (fresh) {
-    var p = this.player, Y0 = this.waterY + 20, Y1 = 990, self = this, win = 1.5, fs = [this.fwd, this.fwd * 0.6];          // the forward speed now and a slower one (current, seaweed, a bump): the crossing takes longer
+    var p = this.player, Y0 = this.waterY + 20, Y1 = 990, self = this, win = 1.5, fs = [this.fwd, Math.max(this.fwd, this.fwdBase()), this.fwd * 0.6];          // the forward speed now and a slower one (current, seaweed, a bump): the crossing takes longer
     return fs.every(function (f) { return self.bossUnionAt(fresh, f, p, Y0, Y1, win); });
   };
   P.bossUnionAt = function (fresh, fwd, p, Y0, Y1, win) {
@@ -134,7 +134,7 @@
       for (k = 0; k < items.length; k++) if (items[k].t1 >= ts && items[k].t0 <= ts + win) blocks.push([items[k].lo, items[k].hi]);
       blocks.sort(function (a, b) { return a[0] - b[0]; });
       blocks.forEach(function (b) { gap = Math.max(gap, b[0] - cur); cur = Math.max(cur, b[1]); }); gap = Math.max(gap, Y1 - cur);
-      if (gap < 300 + 8) return false;
+      if (gap < 300 + (this.form >= 7 ? 24 : 8)) return false;
     }
     return true;
   };
@@ -143,7 +143,7 @@
   P.bossBusy = function () {
     if (!this.bossInfo || !this.bossIsScripted() || this.finale) return false;
     if (this.bossHoldT > this.t || this.bossQ.length || this.bossTele.length) return true;
-    var i, c; for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; if (c.bossAtk && !c.dead && c.role !== 'prey' && c.x > this.player.x - 200) return true; }       // until the body has passed the player
+    var i, c; for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; if (c.bossAtk && !c.dead && c.role !== 'prey' && (this.side ? c.x > this.player.x - 400 : c.x + c.len * 0.5 > this.cam.x)) return true; }       // Side: until the body is well behind the player; Classic: while any of it is in the view
     return false;
   };
   P.bossPurge = function (fromX) {
@@ -185,19 +185,20 @@
       var i, q;
       st.committed++; st.maxWait = Math.max(st.maxWait, late);
       if (teleId) for (i = 0; i < self.bossTele.length; i++) { q = self.bossTele[i]; if (q.id === teleId) { q.until = Math.max(self.t + 0.1, q.u0 || 0); if (fresh && fresh.length === 1) q.y = fresh[0].y; } }       // the lane it really takes
-      self.bossHoldT = Math.max(self.bossHoldT, self.t + 1.5);
+      self.bossHoldT = Math.max(self.bossHoldT, self.t + 2.5);
       return true;
     }
     var qi = this.bossAt(delay, function (item) {
       // spec v5.3 (BB.COMMON.WAVE_TIMING): forms 1-6 never drop a wave and delay it <= 2 s; forms 7-8 may drop up to 15 % and delay <= 4 s
       self.waveTimer = tk;
-      var v, n0 = self.creatures.length, t0 = self.bossTele.length, fresh, late = self.t - due, high = self.form >= T.highFromForm, limit = high ? T.maxDelayHigh : T.maxDelayLow, force = late >= limit - 0.3, pass;
+      var v, n0 = self.creatures.length, t0 = self.bossTele.length, fresh, late = self.t - due, high = self.form >= T.highFromForm, limit = high ? T.maxDelayHigh : T.maxDelayLow, force = late >= limit - 0.6, pass;
       if (!force && self.bossQ.some(function (q) { return q.wave && q.seq < seq && q !== item; })) { item.t = self.t + 0.25; return false; }      // the waves go one after the other (two big bodies never arrive together)
-      for (v = 0; v < nv; v++) {
+      for (var vi = 0; vi < nv; vi++) {
+        v = force ? nv - 1 - vi : vi;                                                                       // a late wave tries its flattest shape first
         build.call(self, v); fresh = self.creatures.slice(n0);
-        if (!fresh.length) { if (v === nv - 1) { if (teleId) self.bossTeleHold(teleId, 0); return true; } continue; }
+        if (!fresh.length) { if (vi === nv - 1) { if (teleId) self.bossTeleHold(teleId, 0); return true; } continue; }
         pass = self.bossFair(fresh) || (force && self.fairOK(fresh) && self.fairOver(fresh, null, true));
-        if (pass || (force && v === nv - 1 && !(high && st.dropped + 1 <= 0.8 * T.dropHighPct * Math.max(8, st.waves)))) return commit(item, late, fresh);   // a late wave goes with the best shape it has
+        if (pass || (force && vi === nv - 1 && !(high && st.dropped + 1 <= 0.5 * T.dropHighPct * Math.max(12, st.waves)))) return commit(item, late, fresh);   // a late wave goes with the best shape it has
         fresh.forEach(function (c) { c.dead = true; });
         self.creatures.length = n0; self.bossTele.length = Math.min(self.bossTele.length, t0);          // refused: undo (and its own telegraph), try the next shape
       }
@@ -361,7 +362,8 @@
     this.creatures = []; this.objs = []; this.zones = this.zones.filter(function (z) { return !z.boss && z.kind !== 'lava'; });
     p.invuln = 1e9;
     var c = this.spawnCreature(id, this.viewRight() - 220, clamp(p.y, this.waterY + 150, FLOOR - 150), { size: BB.FINALE.rel * this.S, facing: -1, cross: true });
-    if (c) { c.scr = { vx: -BB.FINALE.drift, vy: 0 }; c.finaleBoss = true; c.cost = 0; c.role = 'prey'; c.stun = true; this.finaleBoss = c; }
+    if (c) { c.x = Math.max(c.x, p.x + p.len * 0.9 + c.len * 0.5 + 260); c.scr = { vx: -BB.FINALE.drift, vy: 0 }; c.finaleBoss = true;      // a big player must not eat it on the spot: at least a second and a half to see it come
+       c.cost = 0; c.role = 'prey'; c.stun = true; this.finaleBoss = c; }
     this.emit('finaleStart', { boss: id });
   };
   P.updateFinale = function (dt) {
@@ -487,4 +489,34 @@
     return out;
   };
   P.threatMarkers = function () { return this.side ? sideMarkers.call(this) : this.classicMarkers(); };
+
+  /* ---- obstacles standing on the seabed (spec v5.4, BAL.FLOOR_OBSTACLES): the bottom edge of every one of them is at y = 990 ---- */
+  var FLOOR_KINDS = { rock: 1, coral: 1, anemone: 1, ruin: 1, vent: 1, lava: 1, seaweed: 1, kelp: 1 };
+  // the box a floor obstacle is DRAWN in: width, height (sprite aspect) and the centre that puts its bottom edge on the floor line; state().obstacles reports exactly this box (y + h / 2 = bottom)
+  P.obstacleBox = function (o) {
+    var FL = BAL.FLOOR_OBSTACLES.bottomY, w, h;
+    switch (o.kind) {
+      case 'rock': w = o.r * 2.3; h = w * (o.id % 2 ? 623 / 768 : 501 / 768); break;
+      case 'coral': w = o.r * 2.4; h = w * (o.id % 2 ? 493 / 768 : 615 / 768); break;
+      case 'anemone': w = 120; h = w * 684 / 768; break;
+      case 'ruin': w = o.w; h = o.h; break;
+      case 'vent': w = 150; h = w * 468 / 768; break;
+      case 'lava': w = o.w * 1.08; h = w * 329 / 768; break;
+      case 'seaweed': case 'kelp': h = o.h; w = h * 571 / 768; break;
+      default: return null;
+    }
+    return { x: o.x, y: FL - h / 2, w: w, h: h, bottom: FL };
+  };
+  P.obstacleList = function () {
+    var out = [], i, o, bx, FL = BAL.FLOOR_OBSTACLES.bottomY;
+    function add(o) {
+      bx = FLOOR_KINDS[o.kind] ? self.obstacleBox(o) : null;
+      if (bx) out.push({ id: o.id, kind: o.kind, x: bx.x, y: Math.round(bx.y * 10) / 10, w: Math.round(bx.w * 10) / 10, h: Math.round(bx.h * 10) / 10, floor: true, bottom: Math.round((bx.y + bx.h / 2) * 10) / 10 });
+      else out.push({ id: o.id, kind: o.kind, x: o.x, y: o.y, w: o.w || (o.r ? o.r * 2.3 : 150), h: o.h || (o.r ? o.r * 1.8 : 150), floor: false, bottom: Math.round((o.y + (o.h ? o.h / 2 : (o.r || 0) * 0.9)) * 10) / 10 });
+    }
+    var self = this;
+    for (i = 0; i < this.obs.length; i++) add(this.obs[i]);
+    for (i = 0; i < this.zones.length; i++) { o = this.zones[i]; if (FLOOR_KINDS[o.kind]) add(o); }
+    return out;
+  };
 })(typeof window !== 'undefined' ? window : globalThis);
