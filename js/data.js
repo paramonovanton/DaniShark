@@ -7,7 +7,9 @@
   /* Landscape (CR-1, spec v2 balance.BAL): logical canvas 1080 high, width 1440..2520 (1920 = design area),
      world 3840x1080 scrolling in x, waterline y 330, seabed floor band 990-1080. */
   var BAL = {
-    DESIGN_W: 1920, DESIGN_H: 1080, VIEW_W_MIN: 1440, VIEW_W_MAX: 2520, VIEW_H: 1080, HUD_NARROW_W: 1700,
+    DESIGN_W: 1920, DESIGN_H: 1080, VIEW_W_MIN: 1440, VIEW_W_MAX: 2520, VIEW_H: 1080, HUD_NARROW_W: 1920,
+    // PT2-1 (BUG-U7): the Wide HUD row needs the full 1920 design width (at 1700..1903 the Level Label / Growth Bar ran over the Creature Chip): below it the Narrow (two-row) layout
+    UI_FIT: { minZoomedPx: 9.0, heightTol: 1.12, hudMinPx: 26 },     // fitText floor under the iOS stage zoom (WebKit blows text below 9 CSS px up to 9: its minimum logical font size), height overflow tolerance (Baloo 2 line box)
     W: 3840, H: 1080,                       // world size (sim coordinates)
     waterY: 330, seabedY: 990, floorBand: [990, 1080],
     deepWaterY: 0,           // CR-4: The Abyss has no above-water zone: the 'surface' is the top edge of the view (the top clamp of the player), no sky, no jump band
@@ -19,11 +21,34 @@
     SIZE_STEP: 1.25, IN_FORM: 0.15, IN_FORM_SHARE: 0.15, LEN_PER_S: 9,      // spec v5.4: +15 % of the gap inside a form, so every evolution is a step of +20.5 %
     TINT: { PEER: { from: 0.87, to: 1.15, color: [255, 230, 90], alpha: 0.25 }, THREAT: { from: 1.15, color: [255, 40, 40], alphaAt: [[1.15, 0.25], [2.0, 0.6], [3.0, 0.8]], outlineUnits: [[1.15, 2], [2.0, 3]], outlineColor: 'rgba(90,0,0,0.95)' } },      // role tint of the creatures by size relative to the player (hazards keep their orange pulse)
     FLOOR_OBSTACLES: { bottomY: 990, tol: 2 },
+    /* PT2-4: the evolution "wow" = spec v5.5 constants.BAL.EVO_FX (js/game.js runs the clock in real seconds from the evolution and the slow motion, js/render.js draws,
+       js/audio.js plays the chime + the voice). K[form] = intensity (K_BY_FORM), every amplitude scales with it; the Kraken is the biggest.
+       slowMo: sim time scale 1 - scaleK x min(K, 1), eased in over inS, held to holdToS, eased back to 1 at outToS (not for the Kraken: its celebration freezes the sim).
+       zoom: camera punch BAL.ZOOM x (1 + amp x K), peak at peakAtS, back at backAtS, pivot on the player.  flash: alpha min(max, alphaK x K) fading to endS.
+       rays: light rays around the player startS -> full at fullAtS -> gone at endS, length lenK x len x K, count per tier.  ring: shockwave from startS to maxRLen x len at maxAtS, gone at endS, width widthK x K units.
+       particles: round(base x K x tier) at startS, life lifeS.  pop: player scale 1 + peakK x K at peakAtS from startS, back (small undershoot) at endS; the collider is not scaled.
+       shake: ampK x K screen px (Kraken krakenAmp) from startS to endS.  push: threats whose body overlaps the disc rLen x len are moved out to its edge (Side: along x only,
+       and only when the field ahead stays fair), mines / falling rocks inside it are removed.  kraken: rays and particles last x krakenMul. */
+    EVO_FX: { K: { 2: 0.6, 3: 0.68, 4: 0.76, 5: 0.84, 6: 0.92, 7: 1.0, 8: 1.4 },
+      slowMo: { scaleK: 0.65, inS: 0.05, holdToS: 0.35, outToS: 0.65 }, zoom: { amp: 0.12, peakAtS: 0.15, backAtS: 0.6 }, flash: { alphaK: 0.5, max: 0.7, endS: 0.25 },
+      rays: { startS: 0.05, fullAtS: 0.3, endS: 1.1, lenK: 2.0, count: { desktop: 12, mobile: 8, ios: 6, lite: 0 } }, ring: { startS: 0.1, maxAtS: 0.55, endS: 0.7, maxRLen: 3.0, widthK: 6 },
+      particles: { base: 40, tier: { desktop: 1.0, mobile: 0.5, ios: 0.3, lite: 0 }, startS: 0.1, lifeS: 0.9 }, pop: { startS: 0.1, peakK: 0.15, peakAtS: 0.25, endS: 0.55 },
+      shake: { ampK: 6, krakenAmp: 10, startS: 0.1, endS: 0.4 }, voiceAtS: 0.2, push: { rLen: 3.0 }, krakenMul: 1.5, invulnS: 1.5, durS: 1.1 },
+    // PT2-2: every coral / anemone in the play layer hurts on touch in both modes (usual invulnerability; solid corals still push out in Classic). The hurt shape is an
+    // ellipse in the DRAWN box (boxW x boxH of its width / height, centred in the box) grown by playerR x the player's body radius; contact also counts when a solid coral pushed the player out this step
+    OBS_HAZ: { kinds: ['coral', 'anemone'], boxW: 0.8, boxH: 0.85, playerR: 0.9, names: { coral: 'Fire coral', anemone: 'Sea anemone' }, minGapX: 600, maxH: 180 },      // spec v5.5 CORAL: MIN_GAP_X 600 between stinging floor obstacles, drawn height <= MAX_H
+    // PT2-2: one danger look for every damaging obstacle and hazard creature = spec v5.5 DANGER_FX (RIM_COLORS #FF3B30 / #FF9F1A, RIM_UNITS 3, PULSE_HZ 1.5, RIM_ALPHA 0.55..1):
+    // a rim pulsing between the two colours + a soft glow (one pre-rendered 64 px radial sprite, scaled), no canvas / CSS filters and no shadowBlur
+    DANGER: { hz: 1.5, rgbA: [255, 59, 48], rgbB: [255, 159, 26], rimW: 3, rimA: [0.55, 1.0], glowA: [0.2, 0.45], glowPad: 1.3 },
+    // PT2-2: background scenery (far background + midground strips) is pushed back behind the play layer: a dark water-coloured veil over the lower band, rising from fromY
+    DECOR_BG: { fromY: 430, fullY: 700, alpha: 0.62, midAlpha: 0.9, floorAlpha: 0.22 },
+    SCENERY: { brightness: 0.6, saturation: 0.45 },      // PT2-2 (spec v5.5 SCENERY): the midground coral strip (MID_Wn, parallax 0.66) is baked once per world into a darker, desaturated copy (no per-frame filter); the far background gets the veil above        // veil 0 at fromY -> alpha at fullY and below; floorAlpha = a light veil over the seabed strip art (its painted small corals)
     DECOR_ROCKS: { sink: 0.25 },
     BOSS_POST_HOLD: 1.7,                                                               // QA round 12: normal threats stay held this long after a boss telegraph ends (QA window: telegraph + 1.5 s)                                                       // plain rocks are decoration: the bottom 25 % of the sprite lies below the floor line (the floor strip is drawn in front of them)                                         // every obstacle that stands on the seabed has its bottom edge at y = 990 +/- 2
     ZOOM: 1.25,                // CR-4 (R-OE-49): constant arena zoom (tunable 1.2 .. 1.3); the visible world is the 1920 x 1080 view / ZOOM
     CAM_Y: { dead: 100, lerp: 0.12, topMax: 216, centre: 432, lookUpWithin: 200 },
     maxSpeedBL: 3.0,          // player max speed, body lengths per second
+    CLASSIC_FEEL: { followLag: 0.12, tiltLag: 0.15 },      // PT2-6 (spec v5.5 CLASSIC FOLLOW_LAG_S / TILT_LAG_S): Classic pointer-follow eases toward the target velocity with a first-order lag (was a 0.11 s step), the tilt lags tiltLag s
     stopRadius: 40, glideS: 0.5,
     bumpKnock: 160, bumpStun: 0.4, dmgKnock: 200, invuln: 1.5, evoInvuln: 1.5,
     jumpCooldown: 0.5, jumpRange: 1.5, apexAt: 0.4,
@@ -47,10 +72,13 @@
     PACE: {1: [1.46, 1.57, 1.95, 2.86, 50.73], 2: [1.89, 2.03, 2.5, 2.56, 5.4], 3: [5.08, 4.31, 4.78, 5.5, 26.68], 4: [2.74, 3.6, 4.12, 4.93, 6.93], 5: [1.16, 1.37, 1.55, 1.81, 2.27], 6: [1.91, 2.66, 1.83, 2.27, 2.42], 7: [4.49, 2.63, 3.78, 3.89, 4.42]},   // Side-scroller prey interval factor per level, fitted (mean of 4 seeds) with tests/bot.js (OE_BOT_SIDE, skilled y control, immortal) to the Kraken target (7 x step + 15 s) x level factor (CR-4 v5.1; the boss levels are partly fed by the boss director's schools)
     PACE_C: {1: [0.5, 0.5, 0.5, 0.5, 0.5], 2: [0.5, 0.5, 0.5, 0.5, 0.5], 3: [0.5, 0.5, 0.5, 0.5, 0.5], 4: [0.5, 0.5, 0.5, 0.5, 0.5], 5: [0.5, 0.5, 0.5, 0.5, 0.5], 6: [0.5, 0.5, 0.5, 0.5, 0.5], 7: [0.5, 0.5, 0.5, 0.5, 0.5]},   // Classic prey interval factor per level (neutral 0.5; the pacing is fitted with GP_C)
     BUDGET_C: {1: [1, 1, 1, 1, 1], 2: [1, 1, 1, 1, 1], 3: [1, 1, 1, 1, 1], 4: [1, 1, 1, 1, 1], 5: [1, 1, 1, 1, 1], 6: [1, 1, 1, 1, 1], 7: [1, 1, 1, 1, 1]},   // Classic: factor on the prey budget (foodTarget) per level (1 = the level table x BAL.foodWorldMul)
-    GP_C: {1: [1.56, 1.7, 1.45, 1.51, 0.65], 2: [1.47, 2.0, 2.28, 1.27, 0.7], 3: [1.17, 0.67, 0.55, 0.47, 0.42], 4: [0.78, 0.69, 0.64, 0.46, 0.36], 5: [1.41, 1.35, 1.41, 1.15, 0.85], 6: [1.06, 0.87, 0.92, 0.75, 0.62], 7: [1.33, 1.17, 1.13, 1.01, 1.1]},   // Classic: factor on the GP of a bite per level, fitted with tests/bot.js to the Kraken target (7 x step + 15 s) x level factor = 240 .. 386 s (CR-4 v5.1; the pacing knob that does not depend on spawn luck)
+    GP_C: {1: [1.28, 1.39, 1.19, 1.24, 0.53], 2: [1.21, 1.64, 1.87, 1.04, 0.57], 3: [0.96, 0.55, 0.45, 0.39, 0.34], 4: [0.64, 0.57, 0.52, 0.38, 0.3], 5: [1.16, 1.11, 1.16, 0.94, 0.7], 6: [0.87, 0.71, 0.75, 0.61, 0.51], 7: [1.09, 0.96, 0.93, 0.83, 0.9]},   // Classic: factor on the GP of a bite per level (PT2-3: x0.82 after the forgiving body eat made the Classic bot ~18 % faster), fitted with tests/bot.js to the Kraken target (7 x step + 15 s) x level factor = 240 .. 386 s (CR-4 v5.1; the pacing knob that does not depend on spawn luck)
     GROWTH: {"SPAWN_WEIGHTS": {"prey": 0.55, "peer": 0.15, "threat": 0.30}, "MIN_THREAT_REL": 1.25, "CLASSIC_THREAT_BAND": [0.25, 0.40], "CLASSIC_THREAT_BAND_SANITY": [0.2, 0.55], "SIDE_THREAT_BAND_SANITY": [0.15, 0.7], "CLASSIC_THREAT_MAX": 12,"FORM_GP": [0, 60, 120, 180, 240, 300, 360, 420], "GP_MAX": 450, "SURFACE_REWARD_BASE_GP": 60, "GOAL_FORM": 8, "KRAKEN_CELEBRATION_S": 2.0, "KRAKEN_BANNER_BOSS_S": 1.2, "HEART_ON_EVOLVE": 1, "HEART_ON_EVOLVE_FORMS": [3, 5, 7], "HEARTS_MAX": 3, "EVO_LIGHT_S": 1.2, "EVO_INVULN_S": 1.5, "STEP_TIME_S_BY_WORLD": {"1": 36, "2": 38, "3": 40, "4": 42, "5": 44, "6": 46, "7": 48}, "LEVEL_DURATION_FACTOR": [0.9, 0.95, 1.0, 1.05, 1.1],      // CR-4 v5.1: target time to Kraken = (7 x step time + 15) x level factor (240 .. 386 s, average 309 s)
      "PREY_INTERVAL_MULT_BY_WORLD": {"1": 1.0, "2": 0.95, "3": 0.9, "4": 0.85, "5": 0.8, "6": 0.75, "7": 0.7}, "EVENT_DELAY_S": 20, "EVENT_START_FORM": {"pirate_treasure": 5, "aircraft_challenge": 6, "island_destruction": 6, "cargo_ship": 7}, "SURFACE_POOL": {"world_list_eligible": 0.5, "teaser_next_tier": 0.25, "form_generic": 0.25}},
-    BODY: { bodyR: 0.26, mouthR: 0.20, mouthOffset: 0.40, jumpBL: { side: 0.6, classic: 1.5 }, lenEaseS: 0.15, evoEaseS: 0.4, eatPopPct: 4, eatPopS: 0.2 },
+    BODY: { bodyR: 0.26, mouthR: 0.20, mouthOffset: 0.40, jumpBL: { side: 0.6, classic: 1.5 }, lenEaseS: 0.15, evoEaseS: 0.4, eatPopPct: 4, eatPopS: 0.2,
+      // PT2-3: forgiving eating. Edible prey is eaten when it touches the mouth OR any part of the player's body: a centre circle eatBodyR x len (body 0.26 + margin)
+      // and a tail circle eatTailR x len at eatTailOff x len behind the centre; the prey's own body counts along its length (circles at +/- eatPreySpan x its len), plus eatPad units
+      eatBodyR: 0.31, eatTailOff: 0.30, eatTailR: 0.18, eatPreySpan: 0.35, eatPad: 4 },      // eatBodyR = spec v5.5 EAT_BODY_R_RATIO 0.26 + EAT_MARGIN_RATIO 0.05
     ROSTER_REL: {"1": {"S_ref": 16.67, "rel": {"sardine": 0.24, "clownfish": 0.36, "reeffish": 0.48, "snailfish": 0.54, "crab": 0.72, "pufferfish": 0.96, "snapcrab": 0.84, "grouper": 1.8, "grouper_boss": 2.04}}, "2": {"S_ref": 33.64, "rel": {"salmon": 0.476, "trout": 0.654, "squid": 0.832, "jellyfish": 0.714, "turtle": 0.832, "lionfish": 1.546}}, "3": {"S_ref": 50.0, "rel": {"jellyfish": 0.714, "lanternfish": 0.56, "hatchetfish": 0.68, "moray": 0.92, "stingray": 1.0, "manta": 1.2, "shark": 1.52, "hammerhead": 1.64, "anglerfish": 1.8}}, "4": {"S_ref": 78.0, "rel": {"jellyfish": 0.714, "barracuda": 0.564, "sunfish": 0.769, "dolphin": 1.282, "orca": 1.667, "spermwhale": 2.179, "bluewhale": 3.077}}, "5": {"S_ref": 120.0, "rel": {"viperfish": 0.583, "gulper": 0.75, "anglervar": 1.0, "eel": 0.917, "spermwhale5": 1.25, "giantsquid": 1.583, "submarine": 1.333}}, "6": {"S_ref": 174.55, "rel": {"jellyfish": 0.714, "ammonite": 0.458, "coelacanth": 0.516, "dunkle": 0.859, "plesio": 1.089, "helico": 1.146, "elasmo": 1.375, "mosa": 1.547}}, "7": {"S_ref": 260.0, "rel": {"jellyfish": 0.714, "spiritjelly": 0.577, "abyssal": 0.692, "giantsquid7": 1.192, "leviathan": 1.308, "bloop": 1.538}}},
     forms: [
       { form: 1, name: 'Tiny Fish',   gp: 0,   size: 10,  apex: 70,  dist: 280,  flight: 0.8, art: 'PLY_F1' },
@@ -242,10 +270,33 @@
     LIST: { 1: { id: 'grouper_boss', name: 'Great Grouper', phases: 3 }, 2: { id: 'lionfish', name: 'Lionfish Pair', phases: 2 }, 3: { id: 'anglerfish', name: 'Anglerfish', phases: 3 },
             4: { id: 'orca', name: 'Orca Pod', phases: 3 }, 5: { id: 'submarine', name: 'Submarines and Giant Squid', phases: 3 }, 6: { id: 'mosa', name: 'Mosasaurus', phases: 3 }, 7: { id: 'bloop', name: 'The Bloop', phases: 3 } }
   };
+  /* PT2-5 (spec v5.5 constants.BAL.WORLD_GUIDE, R-OE-60/61): the World Guide lists every creature of BAL.ROSTER_REL[world].rel except the boss-only ids, by rel ascending
+     (ties by English name A-Z), then the world boss (BAL.BOSSES.LIST) as the last row with the Boss tag. Role chip: hazard / giant lists first, then prey <= 0.87 < peer < 1.15 <= predator.
+     ORDER = the expected id lists (tests). Images: CRT_<id> (aliases via NAME_SHARED / js/assets.js ALIAS), loaded on open, released on close. Layout numbers live in ui/generated/ui.css. */
+  BAL.WORLD_GUIDE = {
+    BOSS_ONLY_IDS: ['grouper_boss', 'bloop'], NAME_SHARED: { spermwhale5: 'spermwhale', giantsquid7: 'giantsquid' },
+    ROLE: { preyMax: 0.87, predatorMin: 1.15, hazard: ['jellyfish', 'snapcrab', 'eel'], giant: ['manta', 'spermwhale', 'bluewhale', 'spermwhale5'] },
+    ROLE_CHIP: { prey: 'Prey', peer: 'Same size', predator: 'Hunter', hazard: 'Danger', giant: 'Gentle giant' },      // CMP_Main_RoleChip Role=<value>
+    ORDER: {
+      1: ['sardine', 'clownfish', 'reeffish', 'snailfish', 'crab', 'snapcrab', 'pufferfish', 'grouper', 'BOSS:grouper_boss'],
+      2: ['salmon', 'trout', 'jellyfish', 'turtle', 'squid', 'lionfish', 'BOSS:lionfish'],
+      3: ['lanternfish', 'hatchetfish', 'jellyfish', 'moray', 'stingray', 'manta', 'shark', 'hammerhead', 'anglerfish', 'BOSS:anglerfish'],
+      4: ['barracuda', 'jellyfish', 'sunfish', 'dolphin', 'orca', 'spermwhale', 'bluewhale', 'BOSS:orca'],
+      5: ['viperfish', 'gulper', 'eel', 'anglervar', 'spermwhale5', 'submarine', 'giantsquid', 'BOSS:submarine'],
+      6: ['ammonite', 'coelacanth', 'jellyfish', 'dunkle', 'plesio', 'helico', 'elasmo', 'mosa', 'BOSS:mosa'],
+      7: ['spiritjelly', 'abyssal', 'jellyfish', 'giantsquid7', 'leviathan', 'BOSS:bloop']
+    },
+    PANEL: [1560, 920], CARD: [264, 300], CARD_GAP: 24, IMAGE_BOX: [232, 160], LIST_PAD: 48, CLOSE_BTN: 121, INFO_BTN: 121, OPEN_S: 0.2, CLOSE_S: 0.15, STAGGER_S: 0.03
+  };
   BAL.SIDE = {
     forwardSpeed: [300, 320, 345, 370, 395, 420, 450, 480],        // px/s by form
     kickVy: [560, 590, 620, 650, 680, 710, 740, 770],              // px/s upward by form
     gravity: 1700, maxFall: 760, maxRise: 800, kickMinMs: 90,
+    // PT2-6 (playtest: "smoother, with a little hesitation, like Big Fish"; spec v5.5 SIDE KICK_RAMP_S / GRAVITY_RAMP_S / VY_DAMP / TILT_LAG_S): a tap no longer sets the
+    // velocity at once. The vertical speed eases (smoothstep) from where it was to kickGain[form] x kickVy upward over kickRamp s; gravity comes back over gravOnset s;
+    // vyDamp = water drag (1/s); the body's tilt follows its motion with a lag of tiltLag s. kickGain per form keeps the rise of one kick from rest at the old value
+    // (KICK_RISE_REF 92.2 .. 174.4 px); a kick out of a fall rises less (the hesitation) and a 1 s fall is about 11 % slower (it glides)
+    kickRamp: 0.08, kickGain: [0.834, 0.854, 0.873, 0.891, 0.909, 0.926, 0.942, 0.958], gravOnset: 0.12, vyDamp: 1.5, tiltLag: 0.15,
     screenX: 0.30,                                                 // player at 30% of the view width
     jumpBL: 0.6, jumpCooldown: 0.5, surfaceSpeedMul: 0.6,
     despawnBehind: 600,

@@ -140,3 +140,29 @@ html.tier-ios .stage [style*="StartBanner"], html.tier-lite .stage [style*="Star
 /* CR-4 v5.1: confetti of the Kraken celebration (T_Game_Evolution / LightKraken) */
 .stage .confetti-piece { position: absolute; top: -40px; width: 14px; height: 26px; border-radius: 3px; opacity: .95; animation: confetti 2.2s linear infinite; }
 @keyframes confetti { 0% { translate: 0 -40px; rotate: 0deg; } 100% { translate: 40px 1180px; rotate: 720deg; } }
+
+/* PT2-1 (BUG-U7): HUD top band texts are one line: a label that does not fit is shrunk by UI.fitText, never wrapped into a second line that spills over the plates
+   (WebKit under the iOS stage zoom rounds glyph metrics differently from Chrome) */
+.stage [data-layer="HUD Top"] .k-text, .stage [data-layer="HUD Top"] .k-text > .t { white-space: nowrap !important; }
+.stage [data-layer="HUD Top"] .k-text > .t { max-width: none; }          /* UI.fitText measures the real text width and shrinks it to the box */
+.stage .k-text.fit-ell > .t { max-width: 100% !important; overflow: hidden; text-overflow: ellipsis; }          /* the last resort of UI.fitText: an ellipsis inside the plate */
+
+/* PT2-4: the Evolution Light banner pops in with an overshoot, bigger for higher forms (js/ui.js sets --evo-k from BAL.EVO_FX.K); no animation on the iOS / lite tiers (a running transform keeps a layer) */
+.stage [data-layer="Light Banner"].evo-pop { animation: evopop .55s cubic-bezier(.2, 1.6, .4, 1) both; transform-origin: 50% 40%; }
+@keyframes evopop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(calc(1 + .1 * var(--evo-k, 1))); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+html.tier-ios .stage [data-layer="Light Banner"].evo-pop, html.tier-lite .stage [data-layer="Light Banner"].evo-pop { animation: none; }
+
+/* PT2-5 World Guide (T_Main_WorldGuide): scrim fade + panel 0.92 -> 1 in BAL.WORLD_GUIDE.OPEN_S (0.2 s); cards come in with a 30 ms stagger on the desktop tier only */
+.stage .win-popup.on[data-screen="T_Main_WorldGuide"] [data-layer="Scrim"] { animation: fadein .2s ease-out; }
+.stage .win-popup.on [data-oe="guide-panel"] { animation: guidein .2s ease-out; }
+@keyframes guidein { from { transform: scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+html.tier-desktop .stage [data-oe="guide-cards"] > .guide-card { animation: guidecard .25s ease-out both; }
+@keyframes guidecard { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.stage .card [data-layer="Info Button"] { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .stage .win-popup.on [data-oe="guide-panel"], .stage [data-oe="guide-cards"] > .guide-card { animation: none; } }
+.stage #w-guide { z-index: 30; }      /* above the World Select debug control (z 20) */
+/* BUG-U6 iOS memory: no open animation of the guide on the ios / lite tiers (a running opacity / transform animation is a composited layer the size of the view at dpr 3) */
+html.tier-ios .stage .win-popup.on[data-screen="T_Main_WorldGuide"] [data-layer="Scrim"], html.tier-ios .stage .win-popup.on [data-oe="guide-panel"],
+html.tier-lite .stage .win-popup.on[data-screen="T_Main_WorldGuide"] [data-layer="Scrim"], html.tier-lite .stage .win-popup.on [data-oe="guide-panel"] { animation: none; }
+/* PT2-5: the Locked Ribbon (820 px in Figma Wide) would run under the Order Hint on narrower panels (1248 at 1440): it ends 16 px before the hint, the text shrinks to 26 px, then ellipsis */
+.stage [data-oe="guide-panel"] > [data-layer="Locked Ribbon"] { width: min(820px, calc(100% - 552px)) !important; }

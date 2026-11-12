@@ -56,6 +56,19 @@
     // CR-3: goal banner, bonus phase, light evolution banner, best form
     oe_hud_boss_eat: 'Eat the boss!', oe_evo_kraken: 'Kraken!', oe_evo_kraken_sub: 'You became a Kraken!', oe_wc_world_bonus_val: 'World bonus +{0}', oe_wc_boss_bonus: 'Boss bonus +{0}', oe_wc_boss_bonus_retreat: 'Boss bonus +{0} (it escaped)',
     oe_boss_name_1: 'Great Grouper', oe_boss_name_2: 'Lionfish Pair', oe_boss_name_3: 'Anglerfish', oe_boss_name_4: 'Orca Pod', oe_boss_name_5: 'Submarines and Giant Squid', oe_boss_name_6: 'Mosasaurus', oe_boss_name_7: 'The Bloop', oe_evo_light: '{0}!', oe_best_form: 'Best: {0}',
+    /* PT2-5 World Guide (spec v5.5 loc oe_guide_*, oe_crt_*: creature names; spermwhale5 / giantsquid7 share the base names) */
+    oe_guide_info: 'Creatures of this world', oe_guide_title: 'Creatures of {0}', oe_guide_order: 'Smallest to largest',
+    oe_guide_locked: 'Not unlocked yet: these creatures wait for you', oe_guide_boss: 'Boss', oe_guide_role_prey: 'Prey', oe_guide_role_peer: 'Same size',
+    oe_guide_role_predator: 'Hunter', oe_guide_role_hazard: 'Danger', oe_guide_role_giant: 'Gentle giant',
+    oe_crt_abyssal: 'Abyssal wraith fish', oe_crt_ammonite: 'Ammonite', oe_crt_anglerfish: 'Anglerfish', oe_crt_anglervar: 'Trench anglerfish',
+    oe_crt_barracuda: 'Barracuda', oe_crt_bluewhale: 'Blue whale', oe_crt_clownfish: 'Clownfish', oe_crt_coelacanth: 'Coelacanth', oe_crt_crab: 'Crab',
+    oe_crt_dolphin: 'Dolphin', oe_crt_dunkle: 'Dunkleosteus', oe_crt_eel: 'Electric eel', oe_crt_elasmo: 'Elasmosaurus', oe_crt_giantsquid: 'Giant squid',
+    oe_crt_grouper: 'Reef grouper', oe_crt_gulper: 'Gulper eel', oe_crt_hammerhead: 'Hammerhead', oe_crt_hatchetfish: 'Hatchetfish', oe_crt_helico: 'Prehistoric shark',
+    oe_crt_jellyfish: 'Jellyfish', oe_crt_lanternfish: 'Lanternfish', oe_crt_leviathan: 'Leviathan eel', oe_crt_lionfish: 'Lionfish', oe_crt_manta: 'Manta ray',
+    oe_crt_moray: 'Moray eel', oe_crt_mosa: 'Mosasaurus', oe_crt_orca: 'Orca', oe_crt_plesio: 'Plesiosaurus', oe_crt_pufferfish: 'Pufferfish',
+    oe_crt_reeffish: 'Reef fish', oe_crt_salmon: 'Salmon', oe_crt_sardine: 'Sardine', oe_crt_shark: 'Bull shark', oe_crt_snailfish: 'Snailfish',
+    oe_crt_snapcrab: 'Snapping crab', oe_crt_spermwhale: 'Sperm whale', oe_crt_spiritjelly: 'Spirit jelly', oe_crt_squid: 'Slippery squid', oe_crt_stingray: 'Stingray',
+    oe_crt_submarine: 'Hostile submarine', oe_crt_sunfish: 'Sunfish', oe_crt_trout: 'Trout', oe_crt_turtle: 'Sea turtle', oe_crt_viperfish: 'Viperfish',
     // browser play (BUG-U2): fullscreen button and toasts
     oe_fs_label: 'Fullscreen',
     oe_fs_enter: 'Fullscreen', oe_fs_exit: 'Exit fullscreen',

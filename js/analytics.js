@@ -16,6 +16,7 @@
     LevelRestart: ['world', 'level_in_world'],
     WorldSelected: ['world', 'level_in_world'],
     WorldLockedTapped: ['world'],
+    WorldGuideOpened: ['world', 'world_state', 'creatures'],          // PT2-5 (R-OE-61)
     WorldCompleted: ['world', 'first_time', 'stars', 'coins_gain'],
     Evolved: ['form_from', 'form_to', 'world', 'level_in_world', 'level_time_s', 'light'],
     SurfaceJump: ['form', 'world', 'level_in_world'],

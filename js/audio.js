@@ -50,7 +50,16 @@
       s.buffer = buf; f.type = 'bandpass'; f.frequency.setValueAtTime(f0 || 1200, c.currentTime); if (f1) f.frequency.exponentialRampToValueAtTime(f1, c.currentTime + dur);
       gn.gain.value = vol || 0.25; s.connect(f); f.connect(gn); gn.connect(this.sfxGain); s.start();
     },
-    sfx: function (name) {
+    // PT2-4: a rising chime, longer and higher for higher forms, an upward whoosh, and a low boom for the Kraken (Sound off = silent: tone / noise check it)
+    evolveChime: function (to) {
+      var K = (OE.BAL && OE.BAL.EVO_FX.K[to]) || 1, notes = [392, 523, 659, 784, 1046, 1318, 1568, 2093].slice(0, Math.min(8, 4 + to)), top = notes[notes.length - 1];
+      notes.forEach(function (f, i) { A.tone(f, 0.26 + 0.04 * K, 'triangle', 0.26, f * 1.02, i * (0.075 - 0.004 * to)); });
+      this.tone(top * 0.5, 0.6 + 0.2 * K, 'sine', 0.16, top, 0.05);
+      this.noise(0.45 + 0.1 * K, 0.12 + 0.03 * K, 300, 3500);
+      if (to >= 8) { this.tone(70, 0.9, 'sine', 0.4, 40); this.tone(110, 0.7, 'sawtooth', 0.12, 55, 0.05); }
+      this.vibrate(to >= 8 ? 160 : 60 + 10 * to);
+    },
+    sfx: function (name, opts) {
       switch (name) {
         case 'click': this.tone(520, 0.08, 'triangle', 0.25, 760); break;
         case 'eat': this.tone(300, 0.12, 'sine', 0.35, 700); break;
@@ -61,7 +70,7 @@
         case 'splash': this.noise(0.35, 0.28, 2500, 500); break;
         case 'break': this.noise(0.4, 0.3, 1800, 300); this.tone(160, 0.25, 'square', 0.15, 60); break;
         case 'tooBig': this.tone(200, 0.12, 'square', 0.2, 120); break;
-        case 'evolve': [392, 523, 659, 784, 1046].forEach(function (f, i) { A.tone(f, 0.28, 'triangle', 0.3, null, i * 0.09); }); this.vibrate(60); break;
+        case 'evolve': this.evolveChime((opts && opts.to) || 2); break;
         case 'win': [523, 659, 784, 1046].forEach(function (f, i) { A.tone(f, 0.3, 'triangle', 0.3, null, i * 0.12); }); break;
         case 'star': this.tone(1046, 0.18, 'triangle', 0.3); break;
         case 'fail': [330, 262, 196].forEach(function (f, i) { A.tone(f, 0.35, 'sawtooth', 0.22, f * 0.8, i * 0.2); }); break;
@@ -169,7 +178,7 @@
         case 'surfaceEat': case 'surfaceBite': this.sfx('break'); break;
         case 'break': this.sfx('break'); break;
         case 'tooBig': this.sfx('tooBig'); break;
-        case 'evolve': this.sfx('evolve'); this.voiceLine(); break;
+        case 'evolve': this.sfx('evolve', { to: e.to }); if (OE.app && OE.app.game && OE.app.game.evoFxOff) this.voiceLine(); break;      // PT2-4: the voice follows at BAL.EVO_FX.voiceAtS (js/game.js updateEvoFx)
         case 'win': this.sfx('win'); break;
         case 'fail': this.sfx('fail'); break;
         case 'eventStart': this.sfx('event'); break;

@@ -60,6 +60,7 @@
       if (m.popup === 'locked') return { screen: 'T_Main_WorldLocked', state: 'Default' };
       if (m.popup === 'levelpick') return { screen: 'T_Main_LevelPick', state: 'Default' };
       if (m.popup === 'settings') return { screen: 'T_Main_Settings', state: m.popupState };
+      if (m.popup === 'guide') return { screen: 'T_Main_WorldGuide', state: m.popupState };          // PT2-5: Default / LockedWorld
       return { screen: 'T_Main_WorldSelect', state: m.state };
     }
     var r = this.run;
@@ -129,6 +130,16 @@
       this.main.popup = 'levelpick'; this.main.world = n; this.changed();
     }
   };
+  /* PT2-5 (R-OE-61, TR-OE-72/73): the Info Button of a World Card opens the World Guide of that world (any world state, all World Select states).
+     The card action never runs, the carousel keeps its position (main.focus unchanged); Close / Esc / back / Scrim = closePopup (TR-OE-74..76). */
+  P.openGuide = function (n) {
+    if (this.mode !== 'main' || this.main.popup || n < 1 || n > 7) return false;
+    var st = this.worldState(n), rows = M.guideRows(n);
+    this.main.popup = 'guide'; this.main.popupState = st === 'Locked' ? 'LockedWorld' : 'Default'; this.main.world = n; this.main.guideId = (this.main.guideId || 0) + 1;
+    this.track('WorldGuideOpened', { world: n, world_state: st.toLowerCase(), creatures: rows.length });
+    this.changed();
+    return true;
+  };
   P.closePopup = function () {
     if (this.mode !== 'main' || !this.main.popup) return;
     this.main.popup = null; this.main.popupState = 'Default'; this.changed();
@@ -171,6 +182,7 @@
 
   /* ---------------------------------------------------------------- level lifecycle */
   P.startLevel = function (world, level, opts) {
+    this.evoFx = null;
     opts = opts || {};
     world = U.clamp(world | 0, 1, 7); level = U.clamp(level | 0, 1, 5);
     var replay = M.isReplay(this.save, world, level);                                   // already completed before (tracking only: every level plays the same)
@@ -384,6 +396,7 @@
         sv.stats.surfaceEaten += 1;
         break;
       case 'evolve':
+        this.startEvoFx(e.from, e.to);                                                        // PT2-4: the evolution "wow" (slow motion here, the drawing in js/render.js)
         // CR-3 (R-OE-39): +1 heart and 1.5 s invulnerability were applied by the sim. The FIRST evolution ever = blocking popup (arena frozen);
         // every other = the non-blocking Light banner; the evolution that reaches the goal form shows the goal banner instead (TR-OE-60)
         if (this.assets) { var eids = this.assets.levelIds(r.world, e.to, r.level); if (this.assets.retain) this.assets.retain(eids); this.assets.preload(eids); }     // the forms below the new one are released
@@ -447,9 +460,43 @@
     this.changed();
   };
 
+  /* ---------------------------------------------------------------- PT2-4: evolution FX clock (BAL.EVO_FX) */
+  P.startEvoFx = function (from, to) {
+    var FX = BAL.EVO_FX;
+    if (this.evoFxOff) return;                                                                  // QA: OE_QA.setEvoFx(false)
+    this.evoFx = { t: 0, dur: FX.durS * (to >= 8 ? FX.krakenMul : 1), from: from, to: to, k: FX.K[to] || 1, n: (this.evoFx ? this.evoFx.n : 0) + 1 };
+    this.evoFxCount = (this.evoFxCount || 0) + 1;
+  };
+  // sim time scale: slowMo for slowS, then eased back to 1 over slowEaseS
+  P.evoTimeScale = function () {
+    var f = this.evoFx, FX = BAL.EVO_FX, u, r = this.run;
+    if (!f || f.to >= 8 || (r && (r.krakenPending || r.krakenT > 0))) return 1;                  // the Kraken: the celebration freezes the sim anyway (and the boss finale keeps its 10 s)
+    var S = FX.slowMo, low = 1 - S.scaleK * Math.min(f.k, 1);
+    if (f.t >= S.outToS) return 1;
+    if (f.t < S.inS) { u = f.t / S.inS; return 1 + (low - 1) * u * u * (3 - 2 * u); }
+    if (f.t < S.holdToS) return low;
+    u = (f.t - S.holdToS) / (S.outToS - S.holdToS);
+    return low + (1 - low) * u * u * (3 - 2 * u);
+  };
+  P.updateEvoFx = function (dt) {
+    if (!this.evoFx) return;
+    this.evoFx.t += dt;
+    // R-OE-59 / SFX.VOICE_AT_S: the voice line once per evolution at voiceAtS on the FX clock (the chime plays at t 0 with the evolve event, js/audio.js)
+    if (!this.evoFx.voiced && this.evoFx.t >= BAL.EVO_FX.voiceAtS) { this.evoFx.voiced = true; this.evoFx.voiceAt = Math.round(this.evoFx.t * 1000) / 1000; if (OE.Audio) { try { OE.Audio.voiceLine(); } catch (e) { /* sound never breaks the game */ } } }
+    if (this.evoFx.t >= this.evoFx.dur || !this.sim) this.evoFx = null;
+  };
+  P.evoFxState = function () {
+    var f = this.evoFx;
+    var R = OE.app && OE.app.render, rm = !!(OE.Browser && OE.Browser.reducedMotion());
+    return { active: !!f, t: f ? Math.round(f.t * 1000) / 1000 : 0, dur: f ? f.dur : 0, to: f ? f.to : null, k: f ? f.k : 0, intensity: f ? f.k : 0, timeScale: Math.round(this.evoTimeScale() * 1000) / 1000, count: this.evoFxCount || 0, pushed: this.sim ? (this.sim.evoPushed || 0) : 0,
+      zoom: R && R.evoZoom ? Math.round(BAL.ZOOM * R.evoZoom() * 1000) / 1000 : BAL.ZOOM, flashAlpha: R && R.evoFlashAlpha ? Math.round(R.evoFlashAlpha() * 1000) / 1000 : 0, shakePx: R && R.evoShakePx ? R.evoShakePx() : 0,
+      reducedMotion: rm, voiceAt: f && f.voiceAt !== undefined ? f.voiceAt : null };
+  };
+
   /* ---------------------------------------------------------------- frame update (dt in ms) */
   P.update = function (dtMs) {
     var dt = dtMs / 1000;
+    if (this.mode !== 'game') this.evoFx = null; else if (this.run && (this.run.phase === 'play' || this.run.phase === 'evolution')) this.updateEvoFx(dt);      // a paused level keeps the FX where it was
     if (this.rotate) { if (this.saveDirty) { this.saveT += dt; if (this.saveT >= 1) this.commit(); } return; }   // portrait: everything waits behind the rotate prompt
     if (this.saveDirty) { this.saveT += dt; if (this.saveT >= 1) this.commit(); }
     if (this.damagedT > 0) this.damagedT -= dt;
@@ -494,7 +541,7 @@
           return;
         }
         if (r.endReason && !s.ended && !s.dying && !s.player.airborne && r.endReason !== 'kraken' && r.endReason !== 'finale') s.finish();
-        this.acc += dt;
+        this.acc += dt * this.evoTimeScale();                                                 // PT2-4: slow motion at the start of an evolution
         var n = 0;
         while (this.acc >= STEP && n < 12) {
           this.acc -= STEP; n++;
@@ -537,7 +584,7 @@
       out.blockers = s.blockerList();                                                         // wall / swall / column / mine (Side) and struct / shockring / tentacle (Classic) with glowPx, pocketR, contrast, warnLead, visible
       out.gpC = s.side ? 1 : (((BAL.GP_C || {})[r.world] || [])[r.level - 1] || 1);              // the pacing factor on the GP of a bite (Side-scroller 1.0, Classic the per-level value)
       out.controlMode = s.controlMode; out.forwardSpeed = s.side ? s.fwd : 0; if (true) { out.threats = s.threatMarkers(); out.markers = out.threats.map(function (m) { var sy = s.scrY(m.y); return { id: m.id, kind: m.kind, y: m.y, screenY: Math.max(190, Math.min(1000, sy)), edge: sy < 190 ? 'up' : (sy > 1000 ? 'down' : null) }; }); }
-      out.obstacles = s.obstacleList(); out.decor = s.decorList(); out.coinsCollected = s.coins; out.replay = r.replay; out.waterY = s.waterY; out.invuln = p.invuln;
+      out.obstacles = s.obstacleList(); out.decor = s.decorList().concat(OE.sceneryInfo || []); out.coinsCollected = s.coins; out.replay = r.replay; out.waterY = s.waterY; out.invuln = p.invuln; out.touchNoEat = (s.touchNoEat || []).slice(); out.evoFx = this.evoFxState(); out.eatStats = { eaten: s.stats.eaten };
       for (i = 0; i < s.creatures.length; i++) { var c = s.creatures[i]; out.creatures.push({ id: c.id, type: c.type, x: c.x, y: c.y, vx: c.vx, vy: c.vy, pattern: c.mv ? c.mv.pat : (s.side ? '' : 'CLASSIC'), size: c.size, len: c.len, role: c.role, state: c.state, hidden: c.hidden, tint: s.tintOf(c) }); }
       for (i = 0; i < s.surface.length; i++) { var q = s.surface[i]; out.surfaceTargets.push({ id: q.id, type: q.type, tier: q.tier, x: q.x, y: q.y, eligible: q.tier <= s.form, bites: q.biteN }); }
     }

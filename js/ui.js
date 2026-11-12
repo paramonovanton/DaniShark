@@ -87,7 +87,7 @@
   };
 
   P.build = function () {
-    var self = this, game = this.game, W = this.W, ids = ['loading', 'select', 'locked', 'pick', 'settings', 'hud', 'hint', 'event', 'start', 'pause', 'evo', 'complete', 'fail', 'world', 'rotate'], i;
+    var self = this, game = this.game, W = this.W, ids = ['loading', 'select', 'locked', 'pick', 'settings', 'hud', 'hint', 'event', 'start', 'pause', 'evo', 'complete', 'fail', 'world', 'rotate', 'guide'], i;
     ids.forEach(function (k) { W[k] = document.getElementById('w-' + k); });
     this.tpl = {};
     Array.prototype.forEach.call(document.querySelectorAll('template[data-component]'), function (t) { self.tpl[t.getAttribute('data-component') + '|' + t.getAttribute('data-variant')] = t; });
@@ -172,6 +172,17 @@
     one(W.fail, 'Home Button').addEventListener('click', function () { self.click(); game.goHome(); });
     one(W.world, 'Continue Button').addEventListener('click', function () { self.click(); game.worldCompleteContinue(); });
 
+    // PT2-5 World Guide: Close Button, a tap outside the Panel (Scrim) closes it (TR-OE-74..76; Esc / back go through game.back)
+    var gw = W.guide;
+    this.G = { panel: one(gw, 'Panel'), num: one(gw, 'Panel/World Num'), title: one(gw, 'Panel/World Title'), list: one(gw, 'Panel/Creature List'), cards: one(gw, 'Panel/Creature List/Cards'),
+      ind: one(gw, 'Panel/Creature List/Scroll Indicator'), close: one(gw, 'Panel/Close Button') };
+    var lt = one(gw, 'Panel/Locked Ribbon/Locked Text'); if (lt && !lt.hasAttribute('data-shrink-min')) lt.setAttribute('data-shrink-min', String(BAL.UI_FIT.hudMinPx));      // shrinks like the names on narrow panels
+    this.G.close.addEventListener('click', function (e) { e.stopPropagation(); self.click(); game.closePopup(); });
+    gw.addEventListener('click', function (e) { if (!self.G.panel.contains(e.target)) { self.click(); game.closePopup(); } });
+    this.G.cards.addEventListener('scroll', function () { self.guideScroll(); }, { passive: true });
+    this.guideImgs = []; this.guideRows = [];
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { self.fitGen = (self.fitGen || 0) + 1; });      // texts measured before Baloo 2 arrived are fitted again
+
     // HUD: both layouts (Wide, Narrow) carry the same layer names; every value is written to both
     var hud = W.hud;
     this.H = {
@@ -212,15 +223,37 @@
     if (this.dbgBtn) { this.dbgBtn.hidden = !BAL.DEBUG_UNLOCK; this.dbgBtn.setAttribute('data-on', this.game.debugUnlocked() ? '1' : '0'); }
   };
   // shrink-to-fit for one-line labels in fixed boxes (Best Form Chip, HUD Creature Chip: "Mosasaurus"): the font size drops until the text fits; hidden copies (Wide / Narrow HUD) are fitted when they show
-  P.fitText = function (el, text) {
+  // PT2-1 (BUG-U7): the start size is the generated inline size of the Figma text style (resetting to '' dropped it to the inherited 16 px), and the
+  // floor is the smallest size WebKit keeps under the iOS stage zoom (its 9 px minimum logical font size would otherwise blow a shrunk label up again)
+  // HUD (spec v5.5 HUD_FIT): o.min = the smallest size (TEXT_MIN_PX 26), then o.short (the short Level Label) or an ellipsis: a text never runs outside its plate
+  P.fitText = function (el, text, o) {
     if (!el) return;
+    o = o || {};
     var key = text + '|' + (this.fitGen || 0);
     if (el.__fk === key) return;
-    el.style.fontSize = ''; setText(el, text);
+    if (el.__fs0 === undefined) el.__fs0 = el.style.fontSize || '';
+    el.style.fontSize = el.__fs0; setText(el, text); el.classList.remove('fit-ell');
     if (!el.clientWidth) { el.__fk = null; return; }
-    var fs = parseFloat(g.getComputedStyle(el).fontSize) || 32, n = 0;
-    while (n++ < 12 && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) && fs > 12) { fs *= 0.92; el.style.fontSize = fs.toFixed(1) + 'px'; }
+    var fs0 = parseFloat(g.getComputedStyle(el).fontSize) || 32, fs, n, fi = OE.fitInfo, minFs = Math.max(o.min || 12, OE.Browser && OE.Browser.zoomStage && fi && fi.scale > 0 ? BAL.UI_FIT.minZoomedPx / fi.scale : 12);
+    var span = el.querySelector('.t') || el;                                               // a right-aligned label overflows to the LEFT, which scrollWidth does not count: measure the text span
+    function over() { return Math.max(el.scrollWidth, span.offsetWidth, span.scrollWidth) > el.clientWidth + 1 || el.scrollHeight > el.clientHeight * BAL.UI_FIT.heightTol; }      // span.scrollWidth: the generated HUD fit CSS clips the span itself
+    function shrink() { fs = fs0; n = 0; while (n++ < 14 && over() && fs > minFs) { fs = Math.max(minFs, fs * 0.92); el.style.fontSize = fs.toFixed(1) + 'px'; } }
+    shrink();
+    if (over() && o.short) { el.style.fontSize = el.__fs0; setText(el, o.short); shrink(); }
+    if (over()) el.classList.add('fit-ell');                                                 // the last resort: an ellipsis inside the plate
     el.__fk = key;
+  };
+  // PT2-1: the Growth Bar fill art is a fixed 884 px 9-slice inside its clip; a bar stretched wider than that (the Narrow HUD row 2 on wide stages) gets a fill as wide as the bar
+  P.fitBars = function () {
+    var gen = this.fitGen || 0;
+    (this.H.fill || []).forEach(function (clip, n) {
+      var bar = clip.parentNode, fill = clip.firstElementChild;
+      if (!bar || !fill || clip.__bw === gen) return;
+      if (!bar.clientWidth) return;                                                       // hidden copy: fitted when it shows
+      if (fill.__w0 === undefined) fill.__w0 = parseFloat(fill.style.width) || 0;
+      fill.style.width = Math.max(fill.__w0, Math.ceil(bar.clientWidth * (1 - 2 * (this.fillL[n] || 0) / 100))) + 'px';
+      clip.__bw = gen;
+    }, this);
   };
   P.click = function () { if (OE.Audio) { OE.Audio.unlock(); OE.Audio.sfx('click'); } };
 
@@ -229,8 +262,12 @@
     var self = this, card = document.createElement('div');
     card.className = 'k-instance card'; card.setAttribute('data-layer', 'World Card #' + n); card.setAttribute('data-component', 'CMP_Main_WorldCard');
     this.variant(card, 'State=Locked');
-    card.addEventListener('click', function () {
-      if (self.suppressClick) return; self.click();
+    card.addEventListener('click', function (e) {
+      if (self.suppressClick) return;
+      // PT2-5 (R-OE-61): the Info Button (146 px hit frame, top-right) opens the World Guide of this world; the card action and the carousel do not react
+      var info = e.target && e.target.closest ? e.target.closest('[data-layer="Info Button"]') : null;
+      if (info && card.contains(info)) { e.stopPropagation(); self.click(); self.game.openGuide(n); return; }
+      self.click();
       if (self.game.worldState(n) !== 'Available' && !self.game.main.popup) self.scrollToCard(n - 1, true);
       self.game.tapWorld(n);
     });
@@ -243,6 +280,8 @@
     var key = look + ':' + (wv.completed ? 5 : wv.levelsCompleted);
     if (!changed && card.__key === key) return;
     card.__key = key;
+    var ib = one(card, 'Info Button'), ibb = ib && (one(ib, 'Button') || ib);
+    if (ibb) { ibb.setAttribute('aria-label', T('oe_guide_info')); ibb.setAttribute('title', T('oe_guide_info')); ib.setAttribute('data-world', n); }
     var prev = one(card, 'Preview Art'); if (prev) { prev.setAttribute('data-sprite', 'SPR_UI_Img_Main_WorldPreview_' + n); prev.style.backgroundImage = 'var(--spr-SPR_UI_Img_Main_WorldPreview_' + n + ')'; }
     setText(one(card, 'World Num'), T('oe_world_num', n));
     setText(one(card, 'World Name'), T('oe_world_name_' + n));
@@ -279,7 +318,7 @@
     var self = this, c = this.carousel, drag = null;
     c.addEventListener('pointerdown', function (e) {
       if (self.game.main.popup) return;
-      var s = OE.Browser && OE.Browser.ios && OE.fitInfo ? OE.fitInfo.scale : self.stage.getBoundingClientRect().width / self.stage.offsetWidth, now = performance.now();
+      var s = OE.Browser && OE.Browser.zoomStage && OE.fitInfo ? OE.fitInfo.scale : self.stage.getBoundingClientRect().width / self.stage.offsetWidth, now = performance.now();
       drag = { x: e.clientX, pos: self.pos, s: s || 1, dx: 0, moved: false, lastX: e.clientX, lastT: now, v: 0 };
       self.anim = null;
     });
@@ -321,6 +360,9 @@
     setOn(W.locked, mode === 'main' && popup === 'locked');
     setOn(W.pick, mode === 'main' && popup === 'levelpick');
     setOn(W.settings, mode === 'main' && popup === 'settings');
+    var guideOn = mode === 'main' && popup === 'guide';
+    setOn(W.guide, guideOn);
+    if (guideOn) this.syncGuide(); else if (this.guideFor) this.releaseGuide();
     var inGame = mode === 'game';
     setOn(W.hud, inGame && phase !== 'start');
     W.hud.classList.toggle('live', inGame && phase === 'play');
@@ -422,6 +464,113 @@
     }
   };
 
+  /* ---------------------------------------------------------------- PT2-5 World Guide (T_Main_WorldGuide, R-OE-60/61) */
+  // a url() inside a custom property resolves against the stylesheet that USES the var() (ui/generated/ui.css for --oe-art): give it absolute URLs
+  function absUrl(u) { try { return new g.URL(u, document.baseURI).href; } catch (e) { return u; } }
+  function sprUrl(name) {
+    var v = g.getComputedStyle(document.documentElement).getPropertyValue('--spr-' + name), m = /url\((["']?)(.*?)\1\)/.exec(v || '');
+    return m ? 'url("' + absUrl(m[2]) + '")' : '';
+  }
+  // one card per row of OE.Model.guideRows (CMP_Main_CreatureCard Default / Boss templates); built when it opens, emptied when it closes
+  P.syncGuide = function () {
+    var m = this.game.main;
+    this.state(this.W.guide, m.popupState);
+    if (this.guideFor !== m.guideId) { this.guideFor = m.guideId; this.buildGuide(m.world); }
+    else if (this.guideFit !== (this.fitGen || 0)) { this.guideFit = this.fitGen || 0; this.shrink(this.G.panel); this.guideScroll(); }
+  };
+  P.buildGuide = function (n) {
+    var self = this, G = this.G, GB = BAL.WORLD_GUIDE, rows = M.guideRows(n), frag = document.createDocumentFragment(), stagger = !(OE.Browser && OE.Browser.mobileTier && OE.Browser.mobileTier());
+    this.releaseImgs(); G.cards.textContent = '';
+    var sil = sprUrl('SPR_UI_Img_Main_CreatureSilhouette');
+    setText(G.num, T('oe_world_num', n));
+    setText(G.title, T('oe_guide_title', T('oe_world_name_' + n)));
+    rows.forEach(function (row, k) {
+      var el = document.createElement('div'), name = T(row.nameKey), chip;
+      el.className = 'k-instance guide-card'; el.setAttribute('data-component', 'CMP_Main_CreatureCard');
+      self.variant(el, row.boss ? 'Variant=Boss' : 'Variant=Default');
+      el.setAttribute('data-layer', 'Creature Card #' + (k + 1)); el.setAttribute('data-name', 'Creature Card #' + (k + 1));
+      el.setAttribute('data-creature', row.id); el.setAttribute('data-role', row.role); el.setAttribute('data-boss', row.boss ? '1' : '0');
+      el.style.cssText = 'position: relative; width: ' + GB.CARD[0] + 'px; height: ' + GB.CARD[1] + 'px';
+      if (stagger) el.style.animationDelay = (k * GB.STAGGER_S).toFixed(2) + 's';
+      setText(one(el, 'Creature Name'), name); el.setAttribute('title', name);
+      if (!row.boss && (chip = one(el, 'Role Chip'))) { self.variant(chip, 'Role=' + GB.ROLE_CHIP[row.role]); setText(one(chip, 'Role Label'), T('oe_guide_role_' + row.role)); }
+      var art0 = one(el, 'Creature Image'); if (art0 && sil) art0.style.setProperty('--oe-art', sil);          // the silhouette until the picture has loaded
+      row.el = el; row.loaded = false;
+      frag.appendChild(el);
+    });
+    G.cards.appendChild(frag); G.cards.scrollTop = 0;
+    this.guideRows = rows; this.guideFit = this.fitGen || 0;
+    this.shrink(G.panel); this.guideScroll();
+    this.loadGuideArt(rows);
+  };
+  // creature images of the opened world only: CRT_<id> (js/assets.js picks the tier file: the _m variant on the mobile, ios and lite tiers), at most 4 at a time on iOS;
+  // each one goes into --oe-art when it has loaded (the silhouette until then), the loader Image is dropped at once (the card's background keeps the picture)
+  P.loadGuideArt = function (rows) {
+    var self = this, A = OE.Assets, queue = rows.slice(), active = 0, MAXC = OE.Browser && OE.Browser.ios ? 4 : 8, gen = this.guideFor;
+    function next() {
+      while (queue.length && active < MAXC) {
+        var row = queue.shift(), src = A && A.src(row.image);
+        if (!src) { row.missing = true; continue; }
+        active++; start(row, src);
+      }
+    }
+    function start(row, src) {
+      var img = new Image();
+      self.guideImgs.push(img);
+      function done(ok) {
+        img.onload = img.onerror = null; active--;
+        if (self.guideFor === gen && row.el) {
+          if (ok) { var art = one(row.el, 'Creature Image'); if (art) art.style.setProperty('--oe-art', 'url("' + absUrl(src) + '")'); row.loaded = true; row.w = img.naturalWidth; row.h = img.naturalHeight; row.src = src; }
+          else row.failed = true;
+        }
+        try { img.src = ''; } catch (e) { /* ignore */ }
+        next();
+      }
+      img.onload = function () { done(img.naturalWidth > 0); };
+      img.onerror = function () { done(false); };
+      img.decoding = 'async'; img.src = src;
+    }
+    next();
+  };
+  P.releaseImgs = function () {
+    (this.guideImgs || []).forEach(function (img) { img.onload = img.onerror = null; try { img.src = ''; } catch (e) { /* ignore */ } });
+    this.guideImgs = [];
+  };
+  // closed: the cards (and their --oe-art backgrounds) are removed so the browser can drop the decoded pictures (iOS memory, BUG-U6)
+  P.releaseGuide = function () {
+    this.releaseImgs();
+    this.guideRows.forEach(function (r) { r.el = null; });
+    this.guideRows = []; this.guideFor = null;
+    if (this.G && this.G.cards) this.G.cards.textContent = '';
+  };
+  // Scroll Indicator: Thumb follows --oe-thumb-top / --oe-thumb-h (set on Creature List); hidden when every card fits
+  P.guideScroll = function () {
+    var G = this.G, c = G.cards, sh = c.scrollHeight, ch = c.clientHeight, fits = !ch || sh <= ch + 1, th, h, top;
+    if (G.ind) G.ind.hidden = fits;
+    G.list.setAttribute('data-scroll', fits ? 'fits' : 'scrolls');
+    if (fits) return;
+    th = G.ind ? G.ind.clientHeight : ch; h = Math.max(48, th * ch / sh); top = (th - h) * Math.min(1, Math.max(0, c.scrollTop / (sh - ch)));
+    G.list.style.setProperty('--oe-thumb-top', top.toFixed(1) + 'px'); G.list.style.setProperty('--oe-thumb-h', h.toFixed(1) + 'px');
+  };
+  // OE_UI_SHRINK of ui/generated/stage.js (index.html does not load stage.js): texts with data-shrink-min (Creature Name 32 -> 26 px) shrink 1 px at a time until
+  // they fit, then the CSS ellipsis takes over
+  P.shrink = function (root) {
+    Array.prototype.forEach.call((root || document).querySelectorAll('[data-shrink-min]'), function (el) {
+      var t = el.querySelector('.t') || el, min = +el.getAttribute('data-shrink-min'), size;
+      if (!el.clientWidth) return;
+      if (!el.hasAttribute('data-shrink-max')) el.setAttribute('data-shrink-max', parseFloat(g.getComputedStyle(el).fontSize));
+      size = +el.getAttribute('data-shrink-max'); el.style.fontSize = size + 'px';
+      while (size > min && t.scrollWidth > t.clientWidth + 0.5) { size -= 1; el.style.fontSize = size + 'px'; }
+    });
+  };
+  if (!g.OE_UI_SHRINK) g.OE_UI_SHRINK = function (root) { P.shrink(root); };
+  // QA (spec qaHooks guide()): {world, state, rows:[{id, name, role, boss, rel, image, loaded}]}; null when the guide is closed
+  P.guideInfo = function () {
+    var m = this.game.main;
+    if (this.game.mode !== 'main' || m.popup !== 'guide') return null;
+    return { world: m.world, state: m.popupState, rows: this.guideRows.map(function (r) { return { id: r.id, name: T(r.nameKey), role: r.role, boss: r.boss, rel: r.rel, image: r.image, loaded: !!r.loaded, src: r.src || null, w: r.w || 0 }; }) };
+  };
+
   /* ---------------------------------------------------------------- game windows */
   // names (and the first creature id) of what is new in this level
   P.newCreatures = function (world, level) {
@@ -457,7 +606,8 @@
     this.last.hudHearts = s.hearts;
     var form = s.form;
     if (this.last.hudForm !== form) { H.portrait.forEach(function (cv) { Art.icon(cv, form); }); this.last.hudForm = form; }
-    H.formName.forEach(function (el) { this.fitText(el, T('oe_form_name_' + form)); }, this);
+    H.formName.forEach(function (el) { this.fitText(el, T('oe_form_name_' + form), { min: BAL.UI_FIT.hudMinPx }); }, this);
+    this.fitBars();
     var sz = Math.round(s.S * 10) / 10, szText = T('oe_hud_size', sz % 1 === 0 ? String(sz) : sz.toFixed(1));
     H.size.forEach(function (el) { setText(el, szText); });
     if (this.last.hudCoins !== sv.coins) {
@@ -466,7 +616,11 @@
       this.last.hudCoins = sv.coins;
     }
     var lvl = T('oe_hud_level', T('oe_world_name_' + r.world), r.level);
-    H.lvlLabel.forEach(function (el) { setText(el, lvl); });
+    var lvlShort = T('oe_hud_level_short', r.level);
+    H.lvlLabel.forEach(function (el) {                                                  // PT2-1 (Figma hudCheck, ui/generated/ui.css): the Wide label is the short form, the Narrow one the full form fitted at >= 26 px (short form as the fallback)
+      var wide = el.closest && el.closest('[data-layout="Wide"]');
+      this.fitText(el, wide ? lvlShort : lvl, { min: BAL.UI_FIT.hudMinPx, short: lvlShort });
+    }, this);                // PT2-1: long world names shrink inside the label box instead of running over the pips
     H.lvlPips.forEach(function (box) { for (var k = 0; k < 5; k++) this.pip(box.children[k], k < r.level); }, this);
     var pct = M.formProgress(s.levelGP);                                                 // CR-3: the Growth Bar fills toward the NEXT form and restarts at every evolution
     H.fill.forEach(function (el, n) { var L = this.fillL[n]; el.style.width = (pct * (100 - 2 * L)).toFixed(2) + '%'; }, this);
@@ -619,6 +773,8 @@
       return;
     }
     if (light) {
+      var lb = one(W, 'Light Banner');                                                   // PT2-4: the banner pops in, bigger for higher forms (--evo-k = BAL.EVO_FX.K)
+      if (lb) { lb.style.setProperty('--evo-k', String(BAL.EVO_FX.K[to] || 1)); lb.classList.remove('evo-pop'); void lb.offsetWidth; lb.classList.add('evo-pop'); }
       setText(one(W, 'Light Banner/Form Name'), T('oe_evo_light', T('oe_form_name_' + to)));
       setText(one(W, 'Light Banner/Ability Line'), T('oe_jump_name_' + to));
       var oc = one(W, 'Light Banner/Old Form Icon/Form Portrait'), nc = one(W, 'Light Banner/New Form Icon/Form Portrait');

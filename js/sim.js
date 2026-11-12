@@ -86,13 +86,44 @@
       if (!silent) {
         var hf = 0; for (var qh = from + 1; qh <= f; qh++) if (BAL.GROWTH.HEART_ON_EVOLVE_FORMS.indexOf(qh) >= 0) hf++;       // CR-4 v5.1: +1 heart only on the evolutions to forms 3, 5 and 7
         this.hearts = Math.min(BAL.GROWTH.HEARTS_MAX, this.hearts + hf * BAL.GROWTH.HEART_ON_EVOLVE);
-        this.player.invuln = Math.max(this.player.invuln, BAL.GROWTH.EVO_INVULN_S);
+        this.player.invuln = Math.max(this.player.invuln, BAL.GROWTH.EVO_INVULN_S, BAL.EVO_FX.invulnS);      // sim time: with the slow motion it covers more than the unscaled 1.5 s
+        this.evoPushBack(f);                                                                  // PT2-4: nearby threats are pushed back during the evolution FX
         this.emit('evolve', { from: from, to: f, hearts: this.hearts });
       }
       if (f >= this.goalForm && !this.goalReached) { this.goalReached = true; this.goalAt = this.t; this.krakenHearts = this.hearts; if (!silent) this.emit('kraken', { form: f, hearts: this.hearts }); }      // CR-4 v5.1: the goal of every level = the Kraken; stars = hearts left now
       this.scheduleEvent();
     } else if (f < this.form) this.form = f;
     this.derive(snap);
+  };
+  // PT2-4 (EVO_FX.push): threats (predator / hazard roles) whose body overlaps the disc rLen x len around the player are moved out until the body edge is on the disc;
+  // Side-scroller: along x only (the lanes and the corridor rule stay) and taken back for the bodies ahead if that makes a fair field unfair; mines and falling rocks inside are removed.
+  // Bosses, scripted boss bodies, passives, prey and peers stay where they are.
+  P.evoPushBack = function (to) {
+    var FX = BAL.EVO_FX, p = this.player, R = FX.push.rLen * p.len, i, c, dx, dy, d, need, yb = [this.waterY + 20, BAL.seabedY - 6], n = 0, moved = [], ahead = [], fairBefore = true, near = [], o;
+    function threat(c) { return !c.dead && !c.boss && !c.finaleBoss && !c.scr && !(c.mv && c.mv.pat === 'BOSS') && c.def.k !== 'pas' && (c.role === 'predator' || c.role === 'hazard'); }
+    if (this.side && this.fairOver) {
+      for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; if (threat(c) && c.x >= p.x && Math.hypot(c.x - p.x, c.y - p.y) < R + c.br) near.push(c); }
+      fairBefore = !near.length || this.fairOver(near, null, true);
+    }
+    for (i = 0; i < this.creatures.length; i++) {
+      c = this.creatures[i];
+      if (!threat(c)) continue;
+      dx = c.x - p.x; dy = c.y - p.y; d = Math.sqrt(dx * dx + dy * dy); need = R + c.br;
+      if (d >= need) continue;
+      moved.push([c, c.x, c.y]);
+      if (this.side) { c.x = p.x + (dx >= 0 ? 1 : -1) * Math.sqrt(Math.max(0, need * need - dy * dy)); if (dx >= 0) ahead.push(c); }
+      else {
+        if (d < 1) { dx = 1; dy = 0; d = 1; }
+        c.x = U.clamp(p.x + dx / d * need, c.br, W - c.br); c.y = U.clamp(p.y + dy / d * need, yb[0] + c.br, yb[1] - (c.def.sband === 'floor' ? 0 : c.br));
+      }
+      n++;
+    }
+    if (this.side && ahead.length && fairBefore && this.fairOver && !this.fairOver(ahead, null, true)) {
+      moved.forEach(function (m) { if (ahead.indexOf(m[0]) >= 0) { m[0].x = m[1]; m[0].y = m[2]; n--; } });
+    }
+    for (i = 0; i < this.objs.length; i++) { o = this.objs[i]; if ((o.kind === 'mine' || o.kind === 'frock' || o.kind === 'crock') && !o.dead && Math.hypot(o.x - p.x, o.y - p.y) < R) { o.dead = true; this.emit('break', { x: o.x, y: o.y, kind: o.kind, r: 50 }); } }
+    this.evoPushed = n;
+    return n;
   };
   // surface event: once per level, EVENT_DELAY_S after the form first reaches the event form (5: Pirate Treasure, 6: Aircraft Challenge / Island Destruction, 7: Cargo Ship)
   P.scheduleEvent = function () {
@@ -192,7 +223,7 @@
   P.viewH = function () { return BAL.VIEW_H / BAL.ZOOM; };
   // world coordinates
   P.teleport = function (x, y) {
-    var p = this.player, yb = this.yBounds(); p.x = x; p.y = U.clamp(y, yb[0], yb[1]); y = p.y; /* R-OE-46: the reach clamp applies at once, a same-frame read already shows it */ p.vx = p.vy = 0; p.kbT = 0;
+    var p = this.player, yb = this.yBounds(); p.x = x; p.y = U.clamp(y, yb[0], yb[1]); y = p.y; /* R-OE-46: the reach clamp applies at once, a same-frame read already shows it */ p.vx = p.vy = 0; p.kbT = 0; p.kick = null; p.gravT = undefined;
     if (p.airborne) { p.airborne = false; p.jump = null; }
     this.snapCamera(); this.snapCameraY();
     p.ptr.sx = this.scrX(x); p.ptr.sy = this.scrY(y); p.ptr.x = x; p.ptr.y = y;
@@ -294,7 +325,7 @@
     var dir = this.side ? 1 : (dirHint ? (dirHint < 0 ? -1 : 1) : p.facing);
     p.airborne = true; this.jumpSerial++;
     p.jump = { t: 0, T: f.flight, A: f.apex, vx: this.side ? this.fwd : dir * f.dist / f.flight, y0: p.y, dir: dir, bounced: false, hit: {} };
-    p.facing = dir; p.stun = 0; p.kbT = 0; p.vx = p.vy = 0;
+    p.facing = dir; p.stun = 0; p.kbT = 0; p.vx = p.vy = 0; p.kick = null;
     this.stats.jumps++; this.stats.jumpedOnce = true;
     this.emit('jump', { x: p.x, y: this.waterY, form: this.form });
     return true;
@@ -345,7 +376,7 @@
     if (p.stun > 0) { p.vx *= 0.9; p.vy *= 0.9; }
     else if (ptr.down && d > 1) {
       var sp = cap * U.clamp((d - (BAL.stopRadius - 6)) / 80, 0, 1);
-      var k = Math.min(1, 9 * dt);
+      var k = 1 - Math.exp(-dt / BAL.CLASSIC_FEEL.followLag);                     // PT2-6: a little lag toward the target velocity
       p.vx += (dx / d * sp - p.vx) * k; p.vy += (dy / d * sp - p.vy) * k;
     } else {                                    // glide to a stop in 0.5 s
       var sp0 = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
@@ -369,7 +400,7 @@
     if (Math.abs(p.vx) > 18) p.facing = U.sign(p.vx);
     else if (ptr.down && Math.abs(dx) > 30) p.facing = U.sign(dx);
     var tgt = U.clamp(p.vy * 0.0016, -0.45, 0.45);
-    p.tilt += (tgt - p.tilt) * Math.min(1, 8 * dt);
+    p.tilt += (tgt - p.tilt) * (1 - Math.exp(-dt / BAL.CLASSIC_FEEL.tiltLag));      // PT2-6: the tilt lags the motion
     p.ang = p.facing > 0 ? p.tilt : Math.PI - p.tilt;
     var el = this.jumpEligible();
     if (el && !p.wasEligible) this.emit('jumpReady', {});
@@ -389,6 +420,7 @@
       rr = r + (ob.shape === 'r' ? 0 : ob.r);
       if (dd < rr) {
         if (ob.breakable && this.S >= ob.breakable && o === this.player) { this.breakObstacle(ob); continue; }
+        if (ob.haz && o === this.player) ob.touchStep = this.stepNo;          // PT2-2: a solid coral that pushes the player out also stings (collideObjs, same step)
         if (dd < 0.001) { dx = 0; dy = -1; dd = 1; }
         o.x = cx + dx / dd * rr; o.y = cy + dy / dd * rr;
       }

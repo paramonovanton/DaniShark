@@ -14,6 +14,7 @@
     var kinds = ld.obs || {};
     // obstacle counts in the level tables are per screen; the world is two screens wide
     for (k in kinds) { if (k === 'fall' || k === 'shock') continue; var cnt = Math.max(2, kinds[k] * 2); for (i = 0; i < cnt; i++) this.addObstacle(k, i, cnt); }
+    this.spaceFloorHaz();
     if (kinds.fall) this.fallT = 3;
     if (kinds.shock) this.shockT = 4;
     // creatures: food target counts the whole world (about 1.6 screens of the table's "on screen" number)
@@ -154,9 +155,9 @@
     var clamp = this.side ? function (v) { return v; } : U.clamp;       // Side-scroller: the world has no edges (x is given)
     if (!this.side) bx = clamp(bx, 90, W - 90);
     switch (kind) {
-      case 'coral': r = rng.range(60, 90); this.obs.push({ id: this.nextId++, kind: 'coral', shape: 'c', x: bx, y: FLOOR - r * 0.4, r: r, solid: true, fore: true }); break;
+      case 'coral': r = rng.range(60, 90); this.obs.push({ id: this.nextId++, kind: 'coral', shape: 'c', x: bx, y: FLOOR - r * 0.4, r: r, solid: true, fore: true, haz: true, name: BAL.OBS_HAZ.names.coral }); break;      // PT2-2: corals hurt
       case 'rock': r = rng.range(40, 70); this.obs.push({ id: this.nextId++, kind: 'rock', shape: 'c', x: clamp(bx + 90, 90, W - 90), y: FLOOR - r * 0.45, r: r, solid: false, decor: true });          // a plain rock is decoration only (user playtest): no collision, no bump, not in the fairness break;
-      case 'anemone': this.obs.push({ id: this.nextId++, kind: 'anemone', shape: 'c', x: clamp(bx + 40, 60, W - 60), y: FLOOR - 20, r: 36, haz: true, name: 'Sea anemone' }); break;
+      case 'anemone': this.obs.push({ id: this.nextId++, kind: 'anemone', shape: 'c', x: clamp(bx + 40, 60, W - 60), y: FLOOR - 20, r: 36, haz: true, name: BAL.OBS_HAZ.names.anemone }); break;
       case 'crevice': this.obs.push({ id: this.nextId++, kind: 'crevice', shape: 'c', x: clamp(bx - 70, 80, W - 80), y: FLOOR - rng.range(30, 160), r: 30 }); break;
       case 'brock': this.obs.push({ id: this.nextId++, kind: 'brock', shape: 'c', x: clamp(bx + 50, 90, W - 90), y: FLOOR - rng.range(60, 140), r: 48, solid: true, breakable: 24, coins: rng.int(3, 5) }); break;
       case 'ruin': h = rng.range(180, 360); this.obs.push({ id: this.nextId++, kind: 'ruin', shape: 'r', x: bx, y: FLOOR - h / 2, w: 80, h: h, solid: true, breakable: 29, coins: 3 }); break;
@@ -172,6 +173,12 @@
       case 'collapse': this.objs.push({ id: this.nextId++, kind: 'crock', x: clamp(bx, 100, W - 100), y0: this.waterY + 110, y: this.waterY + 110, st: 'idle', t: 0, tw: rng.range(2, 6), r: 40 }); break;
       default: break;
     }
+  };
+  // PT2-2 (spec v5.5 CORAL.MIN_GAP_X): stinging floor obstacles (corals, anemones) keep >= 600 between them, so the floor stays passable; one that cannot be moved right inside the world is dropped
+  P.spaceFloorHaz = function () {
+    var hz = this.obs.filter(function (o) { return o.haz; }).sort(function (a, b) { return a.x - b.x; }), G = BAL.OBS_HAZ.minGapX, prev = null, drop = [];
+    hz.forEach(function (o) { if (prev && o.x - prev.x < G) { if (prev.x + G <= W - 90) o.x = prev.x + G; else { drop.push(o); return; } } prev = o; });
+    if (drop.length) this.obs = this.obs.filter(function (o) { return drop.indexOf(o) < 0; });
   };
   P.breakObstacle = function (ob) {
     if (ob.dead) return;
@@ -335,6 +342,20 @@
     this.collideObjs(dt);
     this.collideWallObjs();
   };
+  // PT2-2: the hurt shape of a damaging floor obstacle (coral, anemone): an ellipse in its drawn box (BAL.OBS_HAZ), or the push contact of a solid coral this step
+  P.obsHurtShape = function (o) {
+    var bx = this.obstacleBox ? this.obstacleBox(o) : null, HZ = BAL.OBS_HAZ;
+    if (!bx) return { x: o.x, y: o.y, a: o.r, b: o.r, top: o.y - o.r };
+    var a = bx.w * HZ.boxW * 0.5, b = bx.h * HZ.boxH * 0.5;
+    return { x: bx.x, y: bx.y, a: a, b: b, top: bx.y - b };
+  };
+  P.obsHurtHit = function (o) {
+    var p = this.player, h, nx, ny, pr;
+    if (o.touchStep === this.stepNo) return true;
+    h = this.obsHurtShape(o); pr = p.r * BAL.OBS_HAZ.playerR;
+    nx = (p.x - h.x) / (h.a + pr); ny = (p.y - h.y) / (h.b + pr);
+    return nx * nx + ny * ny < 1;
+  };
   P.collectPickups = function () {
     var p = this.player, i, pk, m = this.mouth();
     if (p.airborne) return;
@@ -352,7 +373,7 @@
     var p = this.player, i, o, z, j;
     for (i = 0; i < this.obs.length; i++) {
       o = this.obs[i];
-      if (o.haz && dist(p.x, p.y, o.x, o.y) < p.r + o.r) this.damage({ name: o.name, kind: 'hazard', id: o.kind }, o.x, o.y);
+      if (o.haz && !o.dead && this.obsHurtHit(o)) this.damage({ name: o.name, kind: 'hazard', id: o.kind }, o.x, o.y);
     }
     for (i = 0; i < this.zones.length; i++) {
       z = this.zones[i];

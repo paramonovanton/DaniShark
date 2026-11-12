@@ -30,3 +30,33 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--letter
   [data-layer="T_Game_HUD"] [data-layer="Boss Phase Pips"], [data-layer="T_Game_HUD"] [data-layer="Boss Name"] { translate: 0 90px; }
 }
 .stage[data-narrow] [data-layer="Boss Phase Pips"], .stage[data-narrow] [data-layer="Boss Name"] { translate: 0 90px; }
+/* PT2-1 HUD fit (Figma textTruncation ENDING, 1 line): never wrap or spill out of the band. The Wide Level Label uses
+   oe_hud_level_short ("Level 2/5"); the Narrow one fits the full oe_hud_level at 26 px (Figma hudCheck). */
+[data-layer="Level Label"] [data-layer="Label"], [data-layer="Creature Chip"] [data-layer="Form Name"],
+[data-layer="Creature Chip"] [data-layer="Size"], [data-layer="Coin Counter"] [data-layer="Value"], [data-layer="Boss Name"] {
+  white-space: nowrap; overflow: hidden; min-width: 0; }
+[data-layer="Level Label"] [data-layer="Label"] .t, [data-layer="Creature Chip"] [data-layer="Form Name"] .t,
+[data-layer="Creature Chip"] [data-layer="Size"] .t, [data-layer="Coin Counter"] [data-layer="Value"] .t, [data-layer="Boss Name"] .t {
+  display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* PT2-5 World Guide (T_Main_WorldGuide). Panel = min(1560, W - 192) wide, centred (Figma: Wide 1560 / Narrow 1248 at
+   1440); Panel children are inset-anchored and follow. Creature List keeps its Figma box; its cards sit in the
+   Dev-side scroller [data-layer="Cards"] (flex wrap, 264 x 300 cards, 24 px gaps: 5 columns at 1920, 4 at 1440),
+   vertical scroll, native scrollbar hidden; Scroll Indicator/Thumb follow --oe-thumb-top / --oe-thumb-h (set on
+   Creature List by the page logic). Top/bottom fades are gradient overlays in the popup colour (no CSS mask: the iOS
+   tier forbids masks/filters); retune --oe-guide-fade-top/-bottom (r, g, b) when the popup art changes. */
+[data-oe="guide-panel"] { width: min(1560px, calc(100% - 192px)) !important; left: 50% !important; right: auto !important; translate: -50% 0; }
+[data-oe="guide-list"] { overflow: hidden; --oe-guide-fade-top: 53, 161, 240; --oe-guide-fade-bottom: 35, 139, 232; }
+[data-oe="guide-list"]::before, [data-oe="guide-list"]::after { content: ""; position: absolute; left: 0; right: 16px; height: 40px; z-index: 1; pointer-events: none; }
+[data-oe="guide-list"]::before { top: 0; background: linear-gradient(rgba(var(--oe-guide-fade-top), 1), rgba(var(--oe-guide-fade-top), 0)); }
+[data-oe="guide-list"]::after { bottom: 0; background: linear-gradient(rgba(var(--oe-guide-fade-bottom), 0), rgba(var(--oe-guide-fade-bottom), 1)); }
+[data-oe="guide-list"] > [data-layer="Scroll Indicator"] { z-index: 2; }
+[data-oe="guide-cards"] { display: flex !important; flex-wrap: wrap; align-content: flex-start; gap: 24px; box-sizing: border-box;
+  padding: 8px 24px 24px 0; overflow-x: hidden !important; overflow-y: auto !important; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; touch-action: pan-y; scrollbar-width: none; }
+[data-oe="guide-cards"]::-webkit-scrollbar { display: none; }
+[data-oe="guide-cards"] > [data-component="CMP_Main_CreatureCard"] { position: relative !important; left: auto !important; top: auto !important;
+  right: auto !important; bottom: auto !important; flex: 0 0 264px; }
+[data-component="CMP_Main_CreatureCard"] { overflow: visible !important; }   /* Boss Tag hangs over the corner (-10, -14) */
+[data-oe="guide-art"] { background-image: var(--oe-art, var(--spr-SPR_UI_Img_Main_CreatureSilhouette)) !important;
+  background-size: contain !important; background-position: center !important; background-repeat: no-repeat !important; }
+[data-oe="guide-thumb"] { top: var(--oe-thumb-top, 0px) !important; height: var(--oe-thumb-h, 100%) !important; bottom: auto !important; }

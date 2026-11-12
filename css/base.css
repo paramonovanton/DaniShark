@@ -15,6 +15,10 @@ body * { -webkit-user-drag: none; }
 #app:focus, #stage:focus { outline: none; }
 #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; background: #0a4a6a; box-shadow: 0 0 60px rgba(0, 0, 0, .6);
   --safe-left: 0px; --safe-right: 0px; --safe-top: 0px; --safe-bottom: 0px; }       /* Figma already keeps the 96 / 32 margins; #app pads the real device insets */
+/* PT2-1 (BUG-U7): the HUD Wide / Narrow switch is ONLY the [data-narrow] attribute that js/app.js fit() sets from the logical stage width
+   (BAL.HUD_NARROW_W). The generated ui.css also switches with a container query on the stage; under the iOS stage zoom WebKit can measure the
+   container in zoomed px (844 instead of 2337) and show the Narrow copy on a wide screen, so the stage is no size container. */
+#stage { container-type: normal; }
 #arena-canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
 
 .notice { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); padding: 18px 32px; border-radius: 28px; background: rgba(120, 30, 30, .92); font-size: 30px; font-weight: 800; text-align: center; display: none; pointer-events: none; z-index: 150; white-space: nowrap; }

@@ -516,6 +516,7 @@
       bx = FLOOR_KINDS[o.kind] ? self.obstacleBox(o) : null;
       if (bx) out.push({ id: o.id, kind: o.kind, x: bx.x, y: Math.round(bx.y * 10) / 10, w: Math.round(bx.w * 10) / 10, h: Math.round(bx.h * 10) / 10, floor: true, bottom: Math.round((bx.y + bx.h / 2) * 10) / 10 });
       else out.push({ id: o.id, kind: o.kind, x: o.x, y: o.y, w: o.w || (o.r ? o.r * 2.3 : 150), h: o.h || (o.r ? o.r * 1.8 : 150), floor: false, bottom: Math.round((o.y + (o.h ? o.h / 2 : (o.r || 0) * 0.9)) * 10) / 10 });
+      out[out.length - 1].hurts = !!o.haz; out[out.length - 1].layer = o.decor ? 'decor' : 'play';      // spec v5.5 state().obstacles[].hurts / layer
     }
     var self = this;
     for (i = 0; i < this.obs.length; i++) { if (this.obs[i].kind === 'rock') continue; add(this.obs[i]); }

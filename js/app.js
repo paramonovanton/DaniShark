@@ -36,7 +36,7 @@
     S = Math.max(0.05, Math.min(aw / stageW, ah / BAL.VIEW_H));
     var left = (aw - stageW * S) / 2, top = (ah - BAL.VIEW_H * S) / 2;
     stage.style.width = stageW + 'px'; stage.style.height = BAL.VIEW_H + 'px';
-    if (Br.ios) { stage.style.transform = 'none'; stage.style.zoom = S; stage.style.left = (left / S) + 'px'; stage.style.top = (top / S) + 'px'; }      // BUG-U6: CSS zoom lays the stage out at its real size (a transformed 1920 x 1080 stage is rasterized at 1920 x 1080 x dpr^2 by WebKit); left / top are zoomed too
+    if (Br.zoomStage) { stage.style.transform = 'none'; stage.style.zoom = S; stage.style.left = (left / S) + 'px'; stage.style.top = (top / S) + 'px'; }      // BUG-U6: CSS zoom lays the stage out at its real size (a transformed 1920 x 1080 stage is rasterized at 1920 x 1080 x dpr^2 by WebKit); left / top are zoomed too
     else { stage.style.zoom = ''; stage.style.transform = 'scale(' + S + ')'; stage.style.left = left + 'px'; stage.style.top = top + 'px'; }
     stage.style.setProperty('--view-w', stageW + 'px');
     stage.setAttribute('data-view-w', stageW);

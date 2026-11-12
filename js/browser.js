@@ -198,9 +198,12 @@
     }
     if (/[?&]lite=1(&|$)/.test(s)) tier = 'lite';
     B.tier = tier; B.lite = tier === 'lite';
+    // PT2-1: the iOS tier sizes the stage with CSS zoom (memory); ?stagefit=transform switches a device back to transform: scale for an A/B check, ?stagefit=zoom forces zoom elsewhere
+    var sf = /[?&]stagefit=(zoom|transform)/.exec(s);
+    B.zoomStage = sf ? sf[1] === 'zoom' : B.ios;
     try { var de = g.document.documentElement; de.className = (de.className || '').replace(/\s*tier-\w+/g, '') + ' tier-' + tier + (B.ios ? ' tier-ios' : ''); } catch (e1) { /* ignore */ }
   }
-  B.tier = 'desktop'; B.lite = false; B.ios = false;
+  B.tier = 'desktop'; B.lite = false; B.ios = false; B.zoomStage = false;
   // the device pixel ratio; ?edpr=3 emulates a phone's ratio in a desktop browser (BUG-U6 measurements: canvas backing and the layer estimate of ?mem=1)
   B.devDpr = function () { var q = /[?&]edpr=([0-9.]+)/.exec((g.location && g.location.search) || ''); return q ? parseFloat(q[1]) : (g.devicePixelRatio || 1); };
   B.dprCap = function () { return this.lite || this.ios ? 1 : (this.tier === 'mobile' ? 1.5 : 2); };
@@ -216,6 +219,12 @@
   // Settings > Lite graphics: kept in localStorage, applied on the next load (the tier decides what is decoded at boot)
   B.setLitePref = function (on) { try { if (on) g.localStorage.setItem('oe_lite_pref', '1'); else { g.localStorage.removeItem('oe_lite_pref'); g.sessionStorage.removeItem('oe_lite'); g.sessionStorage.removeItem('oe_loads'); } } catch (e) { /* ignore */ } this.litePref = !!on; };
   B.mobileTier = function () { return this.tier !== 'desktop'; };
+  // R-OE-59: prefers-reduced-motion (OE_QA.reducedMotion(on) overrides it; null = the device setting): the evolution FX drop the shake and the zoom punch, flash x 0.5
+  B.reducedMotionOverride = null;
+  B.reducedMotion = function () {
+    if (this.reducedMotionOverride !== null && this.reducedMotionOverride !== undefined) return !!this.reducedMotionOverride;
+    try { return !!(g.matchMedia && g.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+  };
   B.detectTier = detectTier;
   detectTier();
 

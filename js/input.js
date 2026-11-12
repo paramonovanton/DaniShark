@@ -45,7 +45,7 @@
       });
       function pt(e) {
         var s = scaleFn(), fi = OE.fitInfo, r;
-        if (OE.Browser && OE.Browser.ios && fi) return [(e.clientX - fi.left) / s, (e.clientY - fi.top) / s];       // BUG-U6: a zoomed stage (iOS) reports its rect differently per engine: use the fitted position
+        if (OE.Browser && OE.Browser.zoomStage && fi) return [(e.clientX - fi.left) / s, (e.clientY - fi.top) / s];       // BUG-U6: a zoomed stage (iOS) reports its rect differently per engine: use the fitted position
         r = stageEl.getBoundingClientRect();
         return [(e.clientX - r.left) / s, (e.clientY - r.top) / s];
       }

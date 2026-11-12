@@ -154,11 +154,32 @@
   // logical canvas width for a viewport (height is always 1080): device aspect clamped to 1440 (4:3) .. 2520 (21:9)
   function viewWidth(aw, ah) { return Math.round(U.clamp(BAL.VIEW_H * aw / ah, BAL.VIEW_W_MIN, BAL.VIEW_W_MAX)); }
 
+  /* PT2-5 (R-OE-60): the World Guide rows of a world: roster ids (BAL.ROSTER_REL[w].rel) minus the boss-only ids, by rel ascending, ties by the English name,
+     then the boss row. Row = {id, nameKey, name, rel, role, image, boss}. Pure data (no DOM). */
+  function guideRows(w) {
+    var G = BAL.WORLD_GUIDE, R = BAL.ROSTER_REL[w] || BAL.ROSTER_REL[String(w)], rel = R ? R.rel : {}, rows = [], id, k, base, b, STR = OE.STR || {};
+    function nameOf(key, fid) { return STR[key] || (OE.CREATURES && OE.CREATURES[fid] ? OE.CREATURES[fid].n : fid); }
+    function role(cid, r) {
+      if (G.ROLE.hazard.indexOf(cid) >= 0) return 'hazard';
+      if (G.ROLE.giant.indexOf(cid) >= 0) return 'giant';
+      return r <= G.ROLE.preyMax ? 'prey' : (r >= G.ROLE.predatorMin ? 'predator' : 'peer');
+    }
+    for (id in rel) {
+      if (G.BOSS_ONLY_IDS.indexOf(id) >= 0) continue;
+      base = G.NAME_SHARED[id] || id; k = 'oe_crt_' + base;
+      rows.push({ id: id, nameKey: k, name: nameOf(k, id), rel: rel[id], role: role(id, rel[id]), image: 'CRT_' + base, boss: false });
+    }
+    rows.sort(function (a, c) { return a.rel - c.rel || (a.name < c.name ? -1 : (a.name > c.name ? 1 : 0)); });
+    b = BAL.BOSSES && BAL.BOSSES.LIST[w];
+    if (b) rows.push({ id: b.id, nameKey: 'oe_boss_name_' + w, name: nameOf('oe_boss_name_' + w, b.id), rel: rel[b.id] || null, role: 'boss', image: 'CRT_' + (G.NAME_SHARED[b.id] || b.id), boss: true });
+    return rows;
+  }
+
   OE.Model = {
     viewWidth: viewWidth,
     SAVE_VERSION: SAVE_VERSION, sizeForGP: sizeForGP, sizeStart: sizeStart, formForGP: formForGP, lenPx: lenPx, gpForForm: gpForForm, formProgress: formProgress, goalForm: goalForm, starsFor: starsFor, targetDuration: targetDuration,
     defaultSave: defaultSave, normalizeSave: normalizeSave, looseSave: looseSave,
     worldState: worldState, currentWorld: currentWorld, nextLevel: nextLevel, allCompleted: allCompleted,
-    isReplay: isReplay, applyLevelWin: applyLevelWin
+    isReplay: isReplay, applyLevelWin: applyLevelWin, guideRows: guideRows
   };
 })(typeof window !== 'undefined' ? window : globalThis);

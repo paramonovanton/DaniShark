@@ -68,6 +68,8 @@
   --spr-SPR_UI_Icn_Cmn_Fullscreen: url('ui/generated/sprites/Cmn/Icons/Navigation/SPR_UI_Icn_Cmn_Fullscreen.png');
   --spr-SPR_UI_Icn_Cmn_FullscreenExit: url('ui/generated/sprites/Cmn/Icons/Navigation/SPR_UI_Icn_Cmn_FullscreenExit.png');
   --spr-SPR_UI_Icn_Cmn_GoalFlag: url('ui/generated/sprites/Cmn/Icons/HUD/SPR_UI_Icn_Cmn_GoalFlag.png');
+  --spr-SPR_UI_Icn_Cmn_Info: url('ui/generated/sprites/Cmn/Icons/Common/SPR_UI_Icn_Cmn_Info.png');
+  --spr-SPR_UI_Img_Main_CreatureSilhouette: url('ui/generated/sprites/Main/Images/Creatures/SPR_UI_Img_Main_CreatureSilhouette.png');
 }
 
 /* assets/ui art replaces the Figma stand-ins (same art; JPG backgrounds are 10x smaller) */

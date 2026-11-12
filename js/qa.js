@@ -115,9 +115,65 @@
       // CR-4 v5.1 (R-OE-53): eat the stunned boss of the finale now (false when there is no finale)
       eatBoss: function () { var s = sim(), ok = !!(s && s.eatBoss && s.eatBoss()); game.drainSim(); frame(); return ok; },
       setZoom: function (z) { OE.BAL.ZOOM = Math.max(1.2, Math.min(1.3, Number(z) || 1.25)); ctx.fit(); frame(); return OE.BAL.ZOOM; },
+      setEvoFx: function (on) { game.evoFxOff = on === false; if (on === false) game.evoFx = null; return on !== false; },     // PT2-4: the evolution FX (slow motion) on / off for timing-sensitive checks
+      evoFx: function () { return game.evoFxState(); },
       audioLog: function () { return OE.Audio ? OE.Audio.voiceLog.slice() : []; },
       setSound: function (on) { game.save.settings.sound = !!on; OE.Audio.setSettings(game.save.settings); game.commit(); frame(); return !!on; },
       windowBlur: function () { game.focusLost(); frame(); return true; },
+      /* ---- spec v5.5 (PT2) hooks ---- */
+      // PT2-5: the open World Guide {world, state, rows:[{id, name, role, boss, rel, image, loaded}]} (null when closed); openGuide(n) = a tap on World Card #n/Info Button
+      guide: function () { return ui.guideInfo(); },
+      openGuide: function (n) { var c = ui.cards[n - 1], ib = c && c.querySelector('[data-layer="Info Button"]'); if (ib) ib.click(); else game.openGuide(n); frame(); return ui.guideInfo(); },
+      // R-OE-59: emulate prefers-reduced-motion (true / false); null = the device setting
+      reducedMotion: function (on) { OE.Browser.reducedMotionOverride = on === null || on === undefined ? null : !!on; return OE.Browser.reducedMotion(); },
+      // PT2-2: a play-layer floor obstacle (coral, anemone, rock ...) at world x (a number or 'player.x + n'), placed by the level rules of the current mode
+      // (resting on the seabed, the BAL.OBS_HAZ / addObstacle sizes; Side-scroller: never solid). The min-gap rule is not applied (QA places it where asked). Returns its id
+      spawnObstacle: function (kind, x, opts) {
+        var s = sim(), n, o, m, k;
+        if (!s || !s.addObstacle) return null;
+        if (typeof x === 'string') { m = /player\.x\s*(?:([+-])\s*([\d.]+))?/.exec(x); x = s.player.x + (m && m[2] ? (m[1] === '-' ? -1 : 1) * parseFloat(m[2]) : 0); }
+        if (x === undefined || x === null || isNaN(+x)) x = s.player.x + 400;
+        n = s.obs.length; s.addObstacle(kind, 0, 1, +x);
+        if (s.obs.length === n) return null;
+        o = s.obs[s.obs.length - 1];
+        if (s.side && (kind === 'coral' || kind === 'rock')) { o.solid = false; if (kind === 'rock') o.decor = true; }
+        if (opts) for (k in opts) if (k !== 'id') o[k] = opts[k];
+        frame();
+        return o.id;
+      },
+      // PT2-1 (spec HUD_FIT): the in-level HUD band measured in the DOM, in logical stage px. texts[] = {layer, value, plate:{x,y,w,h}, text:{x,y,w,h}, fontPx, inside, fits,
+      // ellipsized, short}; inside = the text box lies in its plate (+/- PLATE_PAD_PX); fits = inside and nothing clipped (no ellipsis)
+      hudFit: function () {
+        var stage = document.getElementById('stage'), sr = stage.getBoundingClientRect(), sx = sr.width / (stage.offsetWidth || 1), sy = sr.height / (stage.offsetHeight || 1);
+        var narrow = stage.hasAttribute('data-narrow'), layout = narrow ? 'Narrow' : 'Wide', hud = document.getElementById('w-hud'), PAD = 8;
+        function box(r) { return { x: Math.round((r.left - sr.left) / sx * 10) / 10, y: Math.round((r.top - sr.top) / sy * 10) / 10, w: Math.round(r.width / sx * 10) / 10, h: Math.round(r.height / sy * 10) / 10 }; }
+        var top = null;
+        Array.prototype.forEach.call(hud.querySelectorAll('[data-layer="HUD Top"]'), function (t) { if (!top && t.getClientRects().length) top = t; });
+        var out = { scale: { x: Math.round(sx * 10000) / 10000, y: Math.round(sy * 10000) / 10000 }, layout: layout, visible: !!top, texts: [], formTrack: null, growthBar: null };
+        if (!top) return out;
+        var lvl = game.run ? OE.t('oe_hud_level_short', game.run.level) : null;
+        [['Level Label/Label', 'Level Label'], ['Creature Chip/Form Name', 'Creature Chip'], ['Creature Chip/Size', 'Creature Chip'], ['Coin Counter/Value', 'Coin Counter']].forEach(function (pr) {
+          var el = findLayerIn(top, pr[0]), plate = findLayerIn(top, pr[1]);
+          if (el && plate && el.getClientRects().length) out.texts.push(measure(pr[0], el, plate));
+        });
+        var bn = hud.querySelector('[data-layer="Boss Name"]');
+        if (bn && bn.getClientRects().length) out.texts.push(measure('Boss Name', bn, bn.parentElement));
+        function findLayerIn(root, path) { var cur = root, parts = path.split('/'); for (var i = 0; i < parts.length && cur; i++) cur = cur.querySelector('[data-layer="' + parts[i] + '"]'); return cur; }
+        function measure(layer, el, plate) {
+          var span = el.querySelector('.t') || el, pb = box(plate.getBoundingClientRect()), eb = box(el.getBoundingClientRect()), tb = box(span.getBoundingClientRect());
+          var natW = Math.max(span.scrollWidth, span.offsetWidth) * (tb.w / (span.offsetWidth || 1) || 1);
+          var textBox = { x: tb.x, y: tb.y, w: Math.round(Math.min(tb.w, eb.w) * 10) / 10, h: tb.h };
+          var clipped = span.scrollWidth > span.clientWidth + 1 || el.scrollWidth > el.clientWidth + 1 || el.classList.contains('fit-ell');
+          var inside = textBox.x >= pb.x - PAD && textBox.y >= pb.y - PAD && textBox.x + textBox.w <= pb.x + pb.w + PAD && textBox.y + textBox.h <= pb.y + pb.h + PAD;
+          var value = (span.textContent || '').trim();
+          return { layer: layer, value: value, plate: pb, text: textBox, naturalW: Math.round(natW), fontPx: parseFloat(g.getComputedStyle(el).fontSize), inside: inside, fits: inside && !clipped, ellipsized: clipped, short: layer === 'Level Label/Label' ? value === lvl : false };
+        }
+        var icon = findLayerIn(top, 'Form Track/Form 1/Form Portrait') || findLayerIn(top, 'Form Track/Form 1');
+        if (icon && icon.getClientRects().length) { var ib = box(icon.getBoundingClientRect()); out.formTrack = { iconW: ib.w, iconH: ib.h, aspect: Math.round(ib.w / (ib.h || 1) * 1000) / 1000 }; }
+        var gb = findLayerIn(top, 'Growth Bar');
+        if (gb && gb.getClientRects().length) { var bb = box(gb.getBoundingClientRect()); out.growthBar = { w: bb.w, h: bb.h, height: bb.h, expected: 24 }; }
+        return out;
+      },
       // test aid (CR-4 v5.1): noAutoEnd(true) stops the end of the level at the Kraken (the setGoalForm hook is removed: every level ends at the Kraken)
       noAutoEnd: function (on) { game.noAutoEnd = on !== false; return true; },
       setNoAutoEnd: function (on) { return QA.noAutoEnd(on); },

@@ -48,7 +48,7 @@
       case 'bump': this.burst(e.x, e.y, 6, 'rgba(255,255,255,0.8)', 140, 0.3, 4); break;
       case 'jump': this.splash(e.x, e.y, 30 + e.form * 14); break;
       case 'land': this.splash(e.x, e.y, 30 + e.form * 16); this.shake = 2 + e.form * 1.4; this.shakeT = 0.25; break;
-      case 'evolve': this.shake = 8; this.shakeT = 0.3; break;
+      case 'evolve': this.evoBurst(e); break;                                              // PT2-4
       case 'tooBig': this.burst(e.x, e.y, 6, 'rgba(255,120,120,0.9)', 160, 0.4, 4); break;
       case 'surfaceEat':
         this.debris(e); this.text(e.x, e.y - 20, '+' + Math.max(1, Math.round(e.gp)) + ' GP', '#fff', true);
@@ -60,6 +60,82 @@
       case 'eventStart': break;
       default: break;
     }
+  };
+  /* ---- PT2-4: evolution "wow" (BAL.EVO_FX; the clock is game.evoFx: t (real s), dur, to, k) ---- */
+  function smooth(u) { u = Math.min(1, Math.max(0, u)); return u * u * (3 - 2 * u); }
+  function easeOut(u) { u = Math.min(1, Math.max(0, u)); return 1 - (1 - u) * (1 - u); }
+  P.fxTier = function () { var B = OE.Browser || {}; return B.lite ? 'lite' : (B.ios ? 'ios' : (B.tier && B.tier !== 'desktop' ? 'mobile' : 'desktop')); };
+  P.evoBurst = function (e) { /* the burst and the shake start at EVO_FX.particles.startS / shake.startS (evoTick) */ };
+  // one-shot parts of the FX at their start time (particles, shake)
+  P.evoTick = function () {
+    var f = this.game.evoFx, FX = BAL.EVO_FX, sim = this.game.sim, p = sim && sim.player, n, i, a, sp, cols = ['#ffffff', '#ffe36b', '#8ff4ff', '#ffd23f'], km;
+    if (!f || !p) return;
+    if (!f.shook && f.t >= FX.shake.startS && OE.Browser && OE.Browser.reducedMotion()) f.shook = true;          // R-OE-59: reduced motion = no shake
+    if (!f.shook && f.t >= FX.shake.startS) { f.shook = true; this.shake = (f.to >= 8 ? FX.shake.krakenAmp : FX.shake.ampK * f.k) / BAL.ZOOM; this.shakeT = FX.shake.endS - FX.shake.startS; }
+    if (!f.burst && f.t >= FX.particles.startS) {
+      f.burst = true; km = f.to >= 8 ? FX.krakenMul : 1;
+      n = Math.round(FX.particles.base * f.k * (FX.particles.tier[this.fxTier()] || 0));
+      for (i = 0; i < n; i++) { a = Math.random() * TAU; sp = (260 + Math.random() * 420) * (0.7 + 0.5 * f.k); this.addPart({ x: p.x + Math.cos(a) * p.len * 0.2, y: p.y + Math.sin(a) * p.len * 0.12, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: FX.particles.lifeS * km * (0.7 + Math.random() * 0.3), max: FX.particles.lifeS * km, r: 4 + Math.random() * 7 * f.k, c: cols[i % cols.length], g: -20 }); }
+      this.evoParts = n; f.parts = n;
+    }
+  };
+  P.evoZoom = function () {
+    var f = this.game.evoFx, Z = BAL.EVO_FX.zoom, z;
+    if (!f || f.t >= Z.backAtS) return 1;
+    if (OE.Browser && OE.Browser.reducedMotion()) return 1;                                     // R-OE-59: reduced motion = no zoom punch
+    z = f.t < Z.peakAtS ? easeOut(f.t / Z.peakAtS) : 1 - smooth((f.t - Z.peakAtS) / (Z.backAtS - Z.peakAtS));
+    return 1 + Z.amp * f.k * z;
+  };
+  // player scale pop: up to the peak, then back with a small undershoot (visual only, the collider keeps its size)
+  P.evoPop = function () {
+    var f = this.game.evoFx, Q = BAL.EVO_FX.pop, A, w;
+    if (!f || f.t < Q.startS || f.t >= Q.endS) return 1;
+    A = Q.peakK * f.k;
+    if (f.t < Q.peakAtS) return 1 + A * smooth((f.t - Q.startS) / (Q.peakAtS - Q.startS));
+    w = (f.t - Q.peakAtS) / (Q.endS - Q.peakAtS);
+    return 1 + A * Math.cos(Math.PI * w * 1.25) * (1 - w);
+  };
+  // behind the player: rotating light rays (additive), count per tier
+  P.drawEvoBack = function (ctx, sim) {
+    var f = this.game.evoFx, RY = BAL.EVO_FX.rays, p = sim.player, km = f && f.to >= 8 ? BAL.EVO_FX.krakenMul : 1, cnt, end, al, R, i, a, g2;
+    if (!f) return;
+    cnt = RY.count[this.fxTier()] || 0; end = RY.endS * km;
+    if (!cnt || f.t < RY.startS || f.t >= end) return;
+    al = f.t < RY.fullAtS ? smooth((f.t - RY.startS) / (RY.fullAtS - RY.startS)) : 1 - smooth((f.t - RY.fullAtS) / (end - RY.fullAtS));
+    R = RY.lenK * p.len * f.k;
+    ctx.save(); ctx.translate(p.x, p.y); ctx.globalCompositeOperation = 'lighter';
+    g2 = ctx.createRadialGradient(0, 0, p.len * 0.1, 0, 0, R);
+    g2.addColorStop(0, 'rgba(255,250,210,' + (0.8 * al).toFixed(3) + ')'); g2.addColorStop(0.4, 'rgba(255,230,120,' + (0.35 * al).toFixed(3) + ')'); g2.addColorStop(1, 'rgba(255,220,90,0)');
+    ctx.rotate(this.t * 0.9); ctx.fillStyle = g2;
+    for (i = 0; i < cnt; i++) { a = i / cnt * TAU; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, a - 0.1, a + 0.1); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.arc(0, 0, R * 0.4, 0, TAU); ctx.fill();
+    ctx.restore();
+  };
+  // in front: the shockwave ring
+  P.drawEvoFront = function (ctx, sim) {
+    var f = this.game.evoFx, RG = BAL.EVO_FX.ring, p = sim.player, u, r, al;
+    if (!f || f.t < RG.startS || f.t >= RG.endS) return;
+    u = Math.min(1, (f.t - RG.startS) / (RG.maxAtS - RG.startS)); r = p.len * 0.3 + (RG.maxRLen * p.len - p.len * 0.3) * easeOut(u);
+    al = f.t < RG.maxAtS ? 0.95 : 0.95 * (1 - (f.t - RG.maxAtS) / (RG.endS - RG.maxAtS));
+    ctx.save(); ctx.globalAlpha = Math.max(0, al); ctx.lineWidth = RG.widthK * f.k; ctx.strokeStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = Math.max(0, al) * 0.5; ctx.lineWidth = RG.widthK * f.k * 0.5; ctx.strokeStyle = '#8ff4ff'; ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.9, 0, TAU); ctx.stroke();
+    ctx.restore();
+  };
+  // flash alpha now: min(max, alphaK x k) fading out (quadratic) to endS; x 0.5 with reduced motion (R-OE-59)
+  P.evoFlashAlpha = function () {
+    var f = this.game.evoFx, FL = BAL.EVO_FX.flash, u;
+    if (!f || f.t >= FL.endS) return 0;
+    u = 1 - f.t / FL.endS;
+    return Math.min(FL.max, FL.alphaK * f.k) * u * u * (OE.Browser && OE.Browser.reducedMotion() ? 0.5 : 1);
+  };
+  // screen-shake amplitude now (screen px; 0 with reduced motion)
+  P.evoShakePx = function () { return this.shakeT > 0 && this.game.evoFx ? Math.round(this.shake * BAL.ZOOM * (this.shakeT / 0.3) * 10) / 10 : 0; };
+  // screen space: the white flash
+  P.drawEvoFlash = function (ctx) {
+    var f = this.game.evoFx, FL = BAL.EVO_FX.flash, u;
+    if (!f || f.t >= FL.endS) return;
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = this.evoFlashAlpha(); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, this.cv.width, this.cv.height); ctx.restore();
   };
   P.debris = function (e) {
     var cols = { boats: ['#c68a4a', '#fff', '#2f7ed8'], ships: ['#7a4a22', '#f5ecd0', '#c2873a'], aircraft: ['#e8553a', '#dde3ee', '#7a8aa0'], birds: ['#fff', '#d8dee8'], island: ['#e8cf93', '#5fae4a', '#6a4a22'] }[e.debris] || ['#fff'];
@@ -146,7 +222,7 @@
     var r;
     if (n === 2 || n === 1) {
       step = 120; r = range(step);
-      for (k = r[0]; k < r[1]; k++) { x = k * step - off; var kh = 110 + (Math.abs(k) * 53) % 90; ctx.strokeStyle = n === 2 ? 'rgba(40,120,70,0.5)' : 'rgba(255,120,150,0.35)'; ctx.lineWidth = n === 2 ? 11 : 14; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x, fy + 8); ctx.bezierCurveTo(x + Math.sin(t + k) * 22, fy - kh * 0.4, x - Math.sin(t + k) * 22, fy - kh * 0.7, x + Math.sin(t * 1.2 + k) * 15, fy - kh); ctx.stroke(); }
+      for (k = r[0]; k < r[1]; k++) { x = k * step - off; var kh = 110 + (Math.abs(k) * 53) % 90; ctx.strokeStyle = n === 2 ? 'rgba(40,100,70,0.45)' : 'rgba(120,110,130,0.3)'; ctx.lineWidth = n === 2 ? 11 : 14; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x, fy + 8); ctx.bezierCurveTo(x + Math.sin(t + k) * 22, fy - kh * 0.4, x - Math.sin(t + k) * 22, fy - kh * 0.7, x + Math.sin(t * 1.2 + k) * 15, fy - kh); ctx.stroke(); }
     } else if (n === 5) {
       step = 900; r = range(step);
       for (k = r[0]; k < r[1]; k++) { x = k * step - off; ctx.fillStyle = 'rgba(20,12,40,0.7)'; ctx.beginPath(); ctx.moveTo(x, 330); ctx.lineTo(x + 70, 520); ctx.lineTo(x + 20, 700); ctx.lineTo(x + 80, 880); ctx.lineTo(x, 1080); ctx.closePath(); ctx.fill(); }
@@ -184,12 +260,14 @@
         if (sim.ventActive(z)) { var gp = ctx.createLinearGradient(0, BAL.seabedY - 50, 0, BAL.seabedY - 650); gp.addColorStop(0, 'rgba(255,170,80,0.7)'); gp.addColorStop(1, 'rgba(255,170,80,0)'); ctx.fillStyle = gp; ctx.fillRect(z.x - 55, BAL.seabedY - 650, 110, 600); }
         else if (sim.ventWarn(z)) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; for (k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(z.x + Math.sin(t * 6 + k) * 14, BAL.seabedY - 80 - ((t * 140 + k * 40) % 200), 7, 0, TAU); ctx.fill(); } }
       } else if (z.kind === 'lava' && this.sp('OBS_Lava')) {
+        this.dangerObstacle(ctx, sim, z);
         this.spr(ctx, this.sp('OBS_Lava'), z.x, BAL.FLOOR_OBSTACLES.bottomY, z.w * 1.08, 'b');
       } else if (z.kind === 'lava') {
         var lg = ctx.createLinearGradient(0, z.y - z.h / 2, 0, z.y + z.h / 2); lg.addColorStop(0, '#ffb43a'); lg.addColorStop(1, '#e8401a');
         ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(z.x - z.w / 2, z.y + z.h / 2); for (var xk = 0; xk <= z.w; xk += 30) ctx.lineTo(z.x - z.w / 2 + xk, z.y - z.h / 2 + Math.sin(t * 2 + xk * 0.05) * 6); ctx.lineTo(z.x + z.w / 2, z.y + z.h / 2); ctx.closePath(); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,230,120,0.9)'; ctx.stroke();
       } else if (z.kind === 'elec') {
         var ph = sim.elecPhase(z);
+        if (ph === 'active') this.dangerRect(ctx, z.x - z.w / 2, z.y - z.h / 2, z.w, z.h, z.id);
         ctx.save(); ctx.globalAlpha = ph === 'active' ? 0.95 : (ph === 'warn' ? 0.45 + 0.3 * Math.sin(t * 14) : 0.12);
         ctx.strokeStyle = ph === 'active' ? '#fff36b' : '#7fe8ff'; ctx.lineWidth = ph === 'active' ? 6 : 3;
         ctx.strokeRect(z.x - z.w / 2, z.y - z.h / 2, z.w, z.h);
@@ -251,10 +329,26 @@
     ctx.restore(); return true;
   };
   // seabed strip (SEA_Wn_Floor, tiles along x at parallax 1.0, 150 world units high, top contour at y = 980) and midground strip (MID_Wn, parallax 0.66, bottom at 1080)
+  // PT2-2: the midground strip baked once into a darker, desaturated copy (BAL.SCENERY; getImageData once, no per-frame filter). Falls back to the original
+  // when the pixels cannot be read (file://); OE.sceneryInfo reports it for state().decor
+  P.sceneryMid = function (n) {
+    var img = this.sp('MID_W' + n), SC = BAL.SCENERY, c, x, d, i, l, k, b;
+    if (!img) return null;
+    if (this.sceneryBake && this.sceneryBake.src === img) return this.sceneryBake.out;
+    try {
+      c = document.createElement('canvas'); c.width = img.width; c.height = img.height; x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      d = x.getImageData(0, 0, c.width, c.height); k = SC.saturation; b = SC.brightness;
+      for (i = 0; i < d.data.length; i += 4) { l = 0.299 * d.data[i] + 0.587 * d.data[i + 1] + 0.114 * d.data[i + 2]; d.data[i] = (l + (d.data[i] - l) * k) * b; d.data[i + 1] = (l + (d.data[i + 1] - l) * k) * b; d.data[i + 2] = (l + (d.data[i + 2] - l) * k) * b; }
+      x.putImageData(d, 0, 0);
+      this.sceneryBake = { src: img, out: c, baked: true };
+    } catch (e) { this.sceneryBake = { src: img, out: img, baked: false }; }
+    OE.sceneryInfo = [{ layer: 'scenery', id: 'MID_W' + n, brightness: this.sceneryBake.baked ? SC.brightness : 1, saturation: this.sceneryBake.baked ? SC.saturation : 1, baked: this.sceneryBake.baked, parallax: 0.66 }];
+    return this.sceneryBake.out;
+  };
   P.drawSeabedArt = function (ctx, wd, mode) {
-    var n = wd.n, VW = this.viewW, cam = this.cam, mid = this.sp('MID_W' + n), fl = mode === 'mid' ? null : this.sp('SEA_W' + n + '_Floor'), mh = { 1: 260, 2: 330, 3: 300, 5: 560, 6: 300, 7: 360 }[n] || 300, any = false, x, w, h, off;
+    var n = wd.n, VW = this.viewW, cam = this.cam, mid = this.sceneryMid(n), fl = mode === 'mid' ? null : this.sp('SEA_W' + n + '_Floor'), mh = { 1: 260, 2: 330, 3: 300, 5: 560, 6: 300, 7: 360 }[n] || 300, any = false, x, w, h, off;
     if (mid) {
-      h = mh; w = mid.width * h / mid.height; off = wrap(cam * 0.66, w); ctx.save(); ctx.globalAlpha = 0.88;
+      h = mh; w = mid.width * h / mid.height; off = wrap(cam * 0.66, w); ctx.save(); ctx.globalAlpha = BAL.DECOR_BG.midAlpha;
       for (x = -off; x < VW; x += w) ctx.drawImage(mid, x, 1080 - h, w, h);
       ctx.restore(); any = true;
     }
@@ -298,12 +392,61 @@
     ctx.beginPath(); ctx.ellipse(0, ob.r * 0.45, ob.r * 0.95, ob.r * 0.35, 0, 0, TAU); ctx.fillStyle = '#e07a5a'; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = OUT; ctx.stroke();
     ctx.restore();
   };
+  /* ---- PT2-2: one danger look for everything that hurts on touch (stinging corals / anemones, hazard creatures): a soft red-orange glow (one pre-rendered
+     64 px radial sprite, scaled; no canvas or CSS filters, so the iOS tier draws it too) and a rim that pulses between red and orange (BAL.DANGER) ---- */
+  P.dangerSprite = function () {
+    if (this.dgSpr) return this.dgSpr;
+    var c = document.createElement('canvas'), x, gr, D = BAL.DANGER; c.width = c.height = 64; x = c.getContext('2d');
+    gr = x.createRadialGradient(32, 32, 4, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(' + D.rgbA.join(',') + ',0.9)'); gr.addColorStop(0.55, 'rgba(' + D.rgbB.join(',') + ',0.45)'); gr.addColorStop(1, 'rgba(' + D.rgbB.join(',') + ',0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    return (this.dgSpr = c);
+  };
+  P.dangerPulse = function (seed) { return 0.5 + 0.5 * Math.sin(this.t * BAL.DANGER.hz * TAU + (seed || 0) * 1.7); };
+  // (x, y) = centre of the ellipse rx x ry; dome = only the upper half (an obstacle standing on the floor: y is its bottom line)
+  P.dangerLook = function (ctx, x, y, rx, ry, seed, dome) {
+    var D = BAL.DANGER, u = this.dangerPulse(seed), pad = D.glowPad, c = [0, 1, 2].map(function (k) { return Math.round(D.rgbA[k] + (D.rgbB[k] - D.rgbA[k]) * u); });
+    ctx.save();
+    if (dome) { ctx.beginPath(); ctx.rect(x - rx * pad - 4, y - ry * pad - 4, 2 * rx * pad + 8, ry * pad + 10); ctx.clip(); }
+    ctx.globalAlpha = D.glowA[0] + (D.glowA[1] - D.glowA[0]) * u;
+    ctx.drawImage(this.dangerSprite(), x - rx * pad, y - ry * pad, 2 * rx * pad, 2 * ry * pad);
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, dome ? Math.PI : 0, dome ? TAU : TAU);
+    ctx.lineWidth = D.rimW; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(' + c.join(',') + ',' + (D.rimA[0] + (D.rimA[1] - D.rimA[0]) * u).toFixed(3) + ')'; ctx.stroke();
+    ctx.restore();
+  };
+  // a rectangle rim in the danger colours (walls, columns, electric zones)
+  P.dangerRect = function (ctx, x, y, w, h, seed) {
+    var D = BAL.DANGER, u = this.dangerPulse(seed), c = [0, 1, 2].map(function (k) { return Math.round(D.rgbA[k] + (D.rgbB[k] - D.rgbA[k]) * u); });
+    if (w <= 0 || h <= 0) return;
+    ctx.save(); ctx.lineWidth = D.rimW; ctx.strokeStyle = 'rgba(' + c.join(',') + ',' + (D.rimA[0] + (D.rimA[1] - D.rimA[0]) * u).toFixed(3) + ')'; ctx.strokeRect(x - D.rimW, y - D.rimW, w + 2 * D.rimW, h + 2 * D.rimW); ctx.restore();
+  };
+  // a stinging floor obstacle: the dome hugs its drawn box (sim.obstacleBox), bottom on the floor line
+  P.dangerObstacle = function (ctx, sim, ob) {
+    var bx = sim.obstacleBox ? sim.obstacleBox(ob) : null;
+    if (!bx) { this.dangerLook(ctx, ob.x, ob.y, ob.r + 8, ob.r + 8, ob.id); return; }
+    this.dangerLook(ctx, bx.x, bx.bottom, bx.w * 0.52 + 6, bx.h * 1.02 + 6, ob.id, true);
+  };
+  // PT2-2: background scenery (far background + midground: painted reefs and corals) sits behind a dark water-coloured veil, so the play-layer corals read as the only ones that matter
+  P.drawBgVeil = function (ctx, wd) {
+    var V = BAL.DECOR_BG, col = wd.water[1], r = parseInt(col.slice(1, 3), 16), g2 = parseInt(col.slice(3, 5), 16), b = parseInt(col.slice(5, 7), 16), gr = ctx.createLinearGradient(0, V.fromY, 0, V.fullY), rgb = r + ',' + g2 + ',' + b;
+    gr.addColorStop(0, 'rgba(' + rgb + ',0)'); gr.addColorStop(1, 'rgba(' + rgb + ',' + V.alpha + ')');
+    ctx.fillStyle = gr; ctx.fillRect(0, V.fromY, this.viewW, V.fullY - V.fromY);
+    ctx.fillStyle = 'rgba(' + rgb + ',' + V.alpha + ')'; ctx.fillRect(0, V.fullY, this.viewW, BAL.VIEW_H - V.fullY + 260);
+    this.veilRgb = rgb;
+  };
+  // a light veil over the seabed strip art (world space, after drawFloorWorld): its painted pebbles and small corals stay ground, the play obstacles in front stay bright
+  P.drawFloorVeil = function (ctx) {
+    if (!this.veilRgb) return;
+    ctx.fillStyle = 'rgba(' + this.veilRgb + ',' + BAL.DECOR_BG.floorAlpha + ')'; ctx.fillRect(this.cam - 20, 968, this.viewW + 40, 400);
+  };
   P.drawObstacles = function (ctx, sim, fore) {
     var i, ob, wd = sim.wdef;
     for (i = 0; i < sim.obs.length; i++) {
       ob = sim.obs[i];
       if (!!ob.fore !== fore) continue;
       if (ob.kind === 'rock') continue;                                                          // decor rocks are drawn by drawDecorRocks (before the floor strip)
+      if (ob.haz && !ob.dead && ob.x + 200 > this.cam && ob.x - 200 < this.cam + this.viewW) this.dangerObstacle(ctx, sim, ob);      // PT2-2: shared danger look
       if (ob.kind !== 'brock' ? this.drawObsArt(ctx, ob, wd) : false) continue;       // CR-4: sprite art when loaded
       switch (ob.kind) {
         case 'coral': this.drawCoral(ctx, ob); break;
@@ -367,7 +510,11 @@
     var rim = null, rw = 6;
     if (role === 'prey' && d < 400 && !c.hidden) rim = 'rgba(120,255,120,0.75)';
     else if (role === 'predator' && d < 600) rim = 'rgba(255,60,60,0.85)';
-    else if (role === 'hazard') { rim = 'rgba(255,150,30,' + (0.55 + 0.35 * Math.sin(this.t * 7)) + ')'; }
+    else if (role === 'hazard') {                                                         // PT2-2: the shared danger look (same as stinging corals / anemones)
+      var hx = c.len * 0.5 + 8, hy = Math.max(c.len * (def.asp || 0.4) * 0.5, c.br) + 8;
+      if (def.shape === 'jelly' || def.shape === 'ammonite' || def.shape === 'puff' || def.shape === 'crab') { hx = hy = Math.max(c.br, c.len * 0.38) + 8; }
+      this.dangerLook(ctx, 0, 0, hx, hy, c.id);
+    }
     if (rim) {
       ctx.beginPath();
       var rx = c.len * 0.5 + 8, ry = Math.max(c.len * (def.asp || 0.4) * 0.5, c.br) + 8;
@@ -392,6 +539,7 @@
     var blink = p.blink > 0 && Math.floor(this.t * 14) % 2 === 0;
     ctx.globalAlpha = (sim.dying ? Math.max(0.2, sim.dyingT / BAL.failDelayS) : 1) * (blink ? 0.35 : 1);
     ctx.scale(p.facing, 1);
+    var pop = this.evoPop(); if (pop !== 1) ctx.scale(pop, pop);                               // PT2-4: scale pop with overshoot
     var local = p.facing > 0 ? p.ang : Math.PI - p.ang;
     while (local > Math.PI) local -= TAU; while (local < -Math.PI) local += TAU;
     ctx.rotate(U.clamp(local, -1.3, 1.3));
@@ -445,16 +593,18 @@
       switch (o.kind) {
         case 'mine':
           var mimg = this.sp('OBS_Mine'); if (o.arm && o.t < o.arm) { ctx.save(); ctx.globalAlpha = 0.45 + 0.3 * Math.sin(t * 20); ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(o.x, o.y, 54, 0, TAU); ctx.stroke(); ctx.restore(); }      // arming: a red flash for o.arm s before it can hurt
+          if (!(o.arm && o.t < o.arm)) this.dangerLook(ctx, o.x, o.y, 44, 44, o.id);                    // PT2-2: shared danger look
           if (mimg) { this.spr(ctx, mimg, o.x, o.y, 72, 'c'); ctx.beginPath(); ctx.arc(o.x, o.y, 6, 0, TAU); ctx.fillStyle = (Math.floor(t * 3) % 2 ? '#ff4040' : '#701010'); ctx.fill(); break; }
           ctx.save(); ctx.translate(o.x, o.y); ctx.strokeStyle = '#333'; ctx.lineWidth = 5; for (k = 0; k < 8; k++) { var a = k / 8 * TAU; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 26, Math.sin(a) * 26); ctx.lineTo(Math.cos(a) * 40, Math.sin(a) * 40); ctx.stroke(); }
           ctx.beginPath(); ctx.arc(0, 0, 28, 0, TAU); ctx.fillStyle = '#5a5f66'; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = OUT; ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fillStyle = (Math.floor(t * 3) % 2 ? '#ff4040' : '#701010'); ctx.fill(); ctx.restore(); break;
         case 'frock':
           if (o.st === 'tele') { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(o.x, BAL.seabedY - 30, 60 + o.t * 30, 14, 0, 0, TAU); ctx.fill(); ctx.strokeStyle = 'rgba(255,120,60,0.6)'; ctx.lineWidth = 4; ctx.setLineDash([10, 10]); ctx.beginPath(); ctx.moveTo(o.x, sim.waterY); ctx.lineTo(o.x, BAL.seabedY - 40); ctx.stroke(); ctx.setLineDash([]); }
-          else { this.drawRock(ctx, { x: o.x, y: o.y, r: o.r, id: 3, kind: 'cracked' }, sim.wdef); }
+          else { this.dangerLook(ctx, o.x, o.y, o.r + 10, o.r + 10, o.id); this.drawRock(ctx, { x: o.x, y: o.y, r: o.r, id: 3, kind: 'cracked' }, sim.wdef); }
           break;
         case 'crock':
           if (o.st === 'gone') break;
           var sx = o.st === 'shake' ? Math.sin(t * 60) * 6 : 0;
+          if (o.st === 'fall') this.dangerLook(ctx, o.x, o.y, o.r + 10, o.r + 10, o.id);
           this.drawRock(ctx, { x: o.x + sx, y: o.y, r: o.r, id: 5, kind: 'cracked' }, sim.wdef);
           if (o.st === 'shake') { ctx.strokeStyle = 'rgba(255,200,80,0.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(o.x + sx, o.y, o.r + 10, 0, TAU); ctx.stroke(); }
           break;
@@ -467,6 +617,7 @@
         case 'wall': case 'swall': {
           var wy0 = sim.waterY, gt = o.gapY - o.gapH / 2, gb = o.gapY + o.gapH / 2, sw = o.kind === 'swall';
           this.wn = sim.wdef.n;
+          this.dangerRect(ctx, o.x - o.w / 2, wy0, o.w, gt - wy0, o.id); this.dangerRect(ctx, o.x - o.w / 2, gb, o.w, H - gb, o.id);      // PT2-2: shared danger rim
           if (!sw && this.drawWallArt(ctx, o, wy0, H)) break;
           ctx.save();
           ctx.fillStyle = sw ? 'rgba(255,110,230,0.5)' : '#5a6b86'; ctx.strokeStyle = sw ? 'rgba(255,255,255,0.95)' : OUT; ctx.lineWidth = sw ? 8 : 6;
@@ -482,6 +633,7 @@
             ctx.fillRect(o.x - o.w / 2, cy0, o.w, ct - cy0); ctx.fillRect(o.x - o.w / 2, cb, o.w, H - cb);
             ctx.fillStyle = '#fff'; ctx.font = 'bold 54px ' + FONT; ctx.textAlign = 'center'; ctx.fillText('!', o.x, o.gapY + 18);
           } else {
+            this.dangerRect(ctx, o.x - o.w / 2, cy0, o.w, ct - cy0, o.id); this.dangerRect(ctx, o.x - o.w / 2, cb, o.w, H - cb, o.id);
             ctx.fillStyle = '#8a3fd0'; ctx.strokeStyle = OUT; ctx.lineWidth = 6;
             ctx.fillRect(o.x - o.w / 2, cy0, o.w, ct - cy0); ctx.fillRect(o.x - o.w / 2, cb, o.w, H - cb);
             ctx.strokeRect(o.x - o.w / 2, cy0, o.w, ct - cy0); ctx.strokeRect(o.x - o.w / 2, cb, o.w, H - cb);
@@ -661,13 +813,16 @@
     if (this.shakeT > 0) { this.shakeT -= dt; var sh = this.shake * (this.shakeT / 0.3); ctx.translate((Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh); }
     if (!sim || game.mode !== 'game') { this.glowLine = 0; this.drawIdle(ctx); return; }
     var wd = sim.wdef, i, list, cam = sim.cam.x, VW = this.viewW;
+    this.evoTick();
+    var ez = this.evoZoom();                                                                   // PT2-4: camera zoom punch, pivot on the player (zoom in only, so the edges stay covered)
+    if (ez !== 1) { var zx = sim.player.x - cam, zy = sim.player.y; ctx.translate(zx, zy); ctx.scale(ez, ez); ctx.translate(-zx, -zy); }
     this.cam = cam;
     this.glowLine = sim.jumpEligible() ? 1 : 0;
     var bg = OE.Assets.get('BG_W' + wd.n + '_Back');
-    if (bg) { this.drawFarBg(ctx, bg, cam, sim.deep); this.drawSeabedArt(ctx, wd, 'mid'); if (!sim.deep) this.drawWaterLine(ctx, sim); }
-    else { if (!sim.deep) this.drawSky(ctx, wd, sim); this.drawWater(ctx, wd, sim); }
+    if (bg) { this.drawFarBg(ctx, bg, cam, sim.deep); this.drawBgVeil(ctx, wd); this.drawSeabedArt(ctx, wd, 'mid'); if (!sim.deep) this.drawWaterLine(ctx, sim); }      // PT2-2: the far reef behind a water veil, the baked dark midground strip
+    else { if (!sim.deep) this.drawSky(ctx, wd, sim); this.drawWater(ctx, wd, sim); this.drawBgVeil(ctx, wd); }
     ctx.save(); ctx.translate(-cam, 0);                        // world space from here
-    if (bg) { this.drawDecorRocks(ctx, sim); this.drawFloorWorld(ctx, wd, cam); }          // the decor rocks, then the floor strip in front of them: they stand sunk in the sand
+    if (bg) { this.drawDecorRocks(ctx, sim); this.drawFloorWorld(ctx, wd, cam); this.drawFloorVeil(ctx); }          // the decor rocks, then the floor strip in front of them: they stand sunk in the sand
     this.drawZonesBack(ctx, sim);
     this.drawObstacles(ctx, sim, false);
     this.drawPickups(ctx, sim);
@@ -675,7 +830,9 @@
     for (i = 0; i < list.length; i++) { if (this.onScreen(list[i], cam, VW) && (list[i].boss || list[i].def.ai === 'cruise')) this.drawCreature(ctx, list[i], sim); }
     for (i = 0; i < list.length; i++) { if (this.onScreen(list[i], cam, VW) && !(list[i].boss || list[i].def.ai === 'cruise')) this.drawCreature(ctx, list[i], sim); }
     for (i = 0; i < sim.surface.length; i++) this.drawSurface(ctx, sim.surface[i], sim);
+    this.drawEvoBack(ctx, sim);
     this.drawPlayer(ctx, sim);
+    this.drawEvoFront(ctx, sim);
     this.drawObstacles(ctx, sim, true);
     this.drawZonesFront(ctx, sim);
     this.drawObjs(ctx, sim);
@@ -684,6 +841,7 @@
     ctx.restore();
     this.ambient(ctx, sim, dt);
     this.drawDark(ctx, sim);
+    this.drawEvoFlash(ctx);
     // global current direction hint (W4/W5)
     if (sim.drift) { ctx.save(); ctx.globalAlpha = 0.25; ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.lineCap = 'round'; for (i = 0; i < 6; i++) { var yy = 420 + i * 100, x0 = wrap(this.t * 160 * sim.driftDir + i * 230, VW + 200) - 100; ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x0 + 70 * sim.driftDir, yy); ctx.stroke(); } ctx.restore(); }
   };

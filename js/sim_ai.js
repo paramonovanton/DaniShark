@@ -541,14 +541,32 @@
     if (c.snapT > 0) return dist(p.x, p.y, c.x, c.y) < p.r + c.br * 1.6;
     return false;
   };
+  // PT2-3: the prey's body for eating covers its whole length (a single centre circle missed a touch on the head or the tail of a long thin fish)
+  P.eatCircles = function (c) {
+    var cs = this.bodyCircles(c), B = BAL.BODY, span = B.eatPreySpan * c.len, r = c.br * 0.9, i, out;
+    if (cs.length > 1) return cs;
+    out = cs.slice();
+    if (span > r) for (i = -1; i <= 1; i += 2) out.push([c.x + c.facing * span * i, c.y, r]);
+    return out;
+  };
+  // PT2-3 (R-OE-38 + playtest): eaten on a mouth touch OR a touch anywhere on the player's body (centre circle + tail circle, BAL.BODY.eat*)
   P.eatHit = function (c) {
-    var p = this.player, m = this.mouth(), cs = this.bodyCircles(c), i;
+    var p = this.player, m = this.mouth(), cs = this.eatCircles(c), B = BAL.BODY, i, cc, a = p.ang, br = B.eatBodyR * p.len, tr = B.eatTailR * p.len, pad = B.eatPad;
+    var tx = p.x - Math.cos(a) * B.eatTailOff * p.len, ty = p.y - Math.sin(a) * B.eatTailOff * p.len;
     for (i = 0; i < cs.length; i++) {
-      var cc = cs[i];
-      if (dist(m.x, m.y, cc[0], cc[1]) < m.r + cc[2]) return true;                       // R-OE-38: the mouth circle overlaps the (smaller) creature's body circle
-      if (dist(p.x, p.y, cc[0], cc[1]) < cc[2] + p.r * 0.4) return true;
+      cc = cs[i];
+      if (dist(m.x, m.y, cc[0], cc[1]) < m.r + cc[2] + pad) return true;                 // the mouth circle overlaps the (smaller) creature's body
+      if (dist(p.x, p.y, cc[0], cc[1]) < br + cc[2] + pad) return true;                  // full-body touch
+      if (dist(tx, ty, cc[0], cc[1]) < tr + cc[2] + pad) return true;                    // the tail end
     }
     return false;
+  };
+  // PT2-3 QA: prey-sized creatures that touched the player and were NOT eaten this step, with the reason (state().touchNoEat; ring of the last 20)
+  P.logTouchNoEat = function (c, reason) {
+    var L = this.touchNoEat || (this.touchNoEat = []), last = L[L.length - 1];
+    if (last && last.id === c.id && last.reason === reason && this.t - last.t < 0.5) { last.t = this.t; last.n++; return; }
+    L.push({ id: c.id, type: c.type, reason: reason, role: c.role, t: Math.round(this.t * 100) / 100, n: 1 });
+    if (L.length > 20) L.shift();
   };
   P.eatCreature = function (c) {
     var gp = Math.max(1, 3 * c.size / this.S) * (c.def.rich || 1) * (this.side ? 1 : (((BAL.GP_C || {})[this.world] || [])[this.level - 1] || 1));   // Classic only: BAL.GP_C = the per-level pacing factor on the bite GP (round 5)
@@ -561,16 +579,19 @@
     var p = this.player, i, c;
     for (i = 0; i < this.creatures.length; i++) {
       c = this.creatures[i];
-      if (c.dead || c.faded || c.hidden) continue;
+      if (c.dead) continue;
+      if (c.faded || c.hidden) { if (c.size <= this.S / BAL.eatRatio + 1e-9 && this.eatHit(c)) this.logTouchNoEat(c, c.faded ? 'faded' : 'hidden'); continue; }
       var role = c.role, sp = c.def.sp || {};
+      if (role !== 'prey' && role !== 'hazard' && c.def.k !== 'pas' && !c.inflated && c.size <= this.S / BAL.eatRatio + 1e-9) { c.role = role = this.roleOf(c); }      // PT2-3: the player grew this step (an earlier bite / evolution): the role follows at once
       if (role === 'prey') {
         var dxp = p.x - c.x;
-        if (sp.armor && dxp * c.facing > 0.1 * c.len && Math.abs(p.y - c.y) < 0.4 * c.len) { if (this.bodyHit(c)) this.bump(c); continue; }   // head-on = bump
-        if (sp.tail && dxp * c.facing < -0.15 * c.len && this.bodyHit(c)) { this.damage({ name: c.def.n, kind: 'hazard', id: c.type }, c.x, c.y); continue; }   // tail sting from behind
+        if (sp.armor && dxp * c.facing > 0.1 * c.len && Math.abs(p.y - c.y) < 0.4 * c.len) { if (this.bodyHit(c)) { this.bump(c); this.logTouchNoEat(c, 'armor'); } continue; }   // head-on = bump
+        if (sp.tail && dxp * c.facing < -0.15 * c.len && this.bodyHit(c)) { this.damage({ name: c.def.n, kind: 'hazard', id: c.type }, c.x, c.y); this.logTouchNoEat(c, 'tail'); continue; }   // tail sting from behind
         if (this.eatHit(c)) this.eatCreature(c);
         continue;
       }
       if (!this.bodyHit(c)) continue;
+      if (role === 'peer') this.logTouchNoEat(c, 'peer');
       if (role === 'peer') {
         if (sp.lunge && c.state === 'lunge') this.damage({ name: c.def.n, kind: 'eaten', id: c.type }, c.x, c.y);
         else this.bump(c);

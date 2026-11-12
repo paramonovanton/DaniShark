@@ -39,7 +39,7 @@
     if (this.jumpEligible()) return this.jump();
     if (p.airborne) return false;
     if (this.lastKickT >= 0 && this.t - this.lastKickT < SD.kickMinMs / 1000 - 1e-9) return false;     // kicks closer than 90 ms count once
-    p.vy = -SD.kickVy[this.form - 1]; this.lastKickT = this.t; this.stats.kicks++;
+    p.kick = { t: 0, v0: p.vy, to: -SD.kickVy[this.form - 1] * SD.kickGain[this.form - 1] }; this.lastKickT = this.t; this.stats.kicks++;      // PT2-6: eased kick (updatePlayerSide)
     this.emit('kick', { x: p.x, y: p.y });
     return true;
   };
@@ -107,17 +107,26 @@
     }
     p.facing = 1;
     if (p.airborne) { this.updateJump(dt); p.vx = this.fwd; return; }
-    var vOld = p.vy;
-    p.vy = clamp(p.vy + SD.gravity * dt, -SD.maxRise, SD.maxFall * this.fallMul);
+    var vOld = p.vy, u, gs;
+    if (p.kick) {                                                                  // PT2-6: the kick eases the vertical speed to its target (smoothstep over kickRamp)
+      p.kick.t += dt; u = Math.min(1, p.kick.t / SD.kickRamp);
+      p.vy = clamp(p.kick.v0 + (p.kick.to - p.kick.v0) * u * u * (3 - 2 * u), -SD.maxRise, SD.maxFall * this.fallMul);
+      if (u >= 1) { p.kick = null; p.gravT = 0; }
+    } else {
+      gs = p.gravT !== undefined && p.gravT < SD.gravOnset ? Math.max(0, p.gravT / SD.gravOnset) : 1;     // gravity comes back gently after a kick
+      if (p.gravT !== undefined) p.gravT += dt;
+      p.vy += SD.gravity * gs * dt; p.vy -= p.vy * SD.vyDamp * dt;                    // water drag
+      p.vy = clamp(p.vy, -SD.maxRise, SD.maxFall * this.fallMul);
+    }
     var dy = ((vOld + p.vy) / 2 + p.ext.y + (p.shoveT > 0 ? p.shoveVy : 0)) * dt;      // trapezoid: a 560 px/s kick rises 92 px
     p.x += this.fwd * dt; p.y += dy;
     var yb = this.yBounds(), minY = yb[0], maxY = yb[1];                       // water surface above, the floor lane below (BUG-U1: the body reaches the floor creatures); the seabed is safe: rest and slide
-    if (p.y < minY) { p.y = minY; p.vy = Math.max(0, p.vy); }
+    if (p.y < minY) { p.y = minY; p.vy = Math.max(0, p.vy); p.kick = null; }
     else if (p.y > maxY) { p.y = maxY; p.vy = Math.min(0, p.vy); }
     p.vx = this.fwd;
     this.stats.moved += Math.abs(dy) + this.fwd * dt;
     var tgt = clamp(p.vy * 0.0007, -0.45, 0.5);
-    p.tilt += (tgt - p.tilt) * Math.min(1, 8 * dt);
+    p.tilt += (tgt - p.tilt) * (1 - Math.exp(-dt / SD.tiltLag));                  // PT2-6: the body tilt lags a little behind the motion
     p.ang = p.tilt;
     var el = this.jumpEligible();
     if (el && !p.wasEligible) this.emit('jumpReady', {});
@@ -444,6 +453,7 @@
         items.push({ t: wt, lo: this.waterY + 20, hi: wo.gapY - wo.gapH / 2, y: wo.gapY, wall: 1, b: 'w' }, { t: wt, lo: wo.gapY + wo.gapH / 2, hi: FLOOR, y: wo.gapY, wall: 1, b: 'w' });
       }
     }
+    this.floorHazBlocks().forEach(function (fb) { if (fb.x + fb.w / 2 > this.player.x - 100) items.push({ t: Math.max(0, (fb.x - this.player.x) / Math.max(60, this.fwd)), lo: fb.top, hi: FLOOR, y: fb.top, wall: 1, b: 'f' }); }, this);   // PT2-2: stinging corals / anemones
     for (i = 0; i < mine.length; i++) {
       var all = items.concat(mine), near = all.filter(function (q) { return Math.abs(q.t - mine[i].t) < win; }), batches = {}, nb = 0;
       near.forEach(function (q) { if (!q.wall && Math.abs(q.y - mine[i].y) <= SD.predWindow[1] / 2 && !batches[q.b]) { batches[q.b] = 1; nb++; } });
@@ -476,8 +486,18 @@
     return out;
   };
   P.fairWalls = function (extra) {
-    var out = this.objs.filter(function (o) { return o.kind === 'wall' || o.kind === 'swall'; });
+    var out = this.objs.filter(function (o) { return o.kind === 'wall' || o.kind === 'swall'; }).concat(this.floorHazBlocks());
     return extra ? out.concat(extra) : out;
+  };
+  // PT2-2: stinging floor obstacles (corals, anemones) as fairness blocks: from the top of their hurt shape down to the seabed, where they stand
+  P.floorFairNear = function () { var i, o, px = this.player.x; for (i = 0; i < this.obs.length; i++) { o = this.obs[i]; if (o.haz && !o.dead && o.x > px - 300) return true; } return false; };
+  P.floorHazBlock = function (o) { var h = this.obsHurtShape(o); return { kind: 'floorhaz', id: o.id, x: h.x, vx: 0, w: 2 * h.a, top: h.top }; };
+  // only the normal threat stream and the coral placement weigh them (this.floorFair): boss waves keep their own timing rules
+  P.floorHazBlocks = function () {
+    var out = [], i, o, px = this.player.x;
+    if (!this.floorFair) return out;
+    for (i = 0; i < this.obs.length; i++) { o = this.obs[i]; if (o.haz && !o.dead && o.x > px - 300) out.push(this.floorHazBlock(o)); }
+    return out;
   };
   // states of a body every DT seconds for Tmax seconds: the movers' segments with the lane clamps / bounce of updateCreaturesSide (copied velocities)
   P.trajectory = function (c, Tmax) {
@@ -523,6 +543,7 @@
     }
     for (i = 0; i < walls.length; i++) {
       o = walls[i]; ox = o.x + (o.vx || 0) * t0;
+      if (o.kind === 'floorhaz') { if (ox + o.w / 2 > px0 - p.len * 0.35 && ox - o.w / 2 < px0 + fwd * 1.5 + 200) blocks.push([o.top, BOTTOM]); continue; }
       if (ox > px0 && ox < px0 + fwd * 1.5 + 200) blocks.push([y0, o.gapY - o.gapH / 2], [o.gapY + o.gapH / 2, BOTTOM]);
     }
     gap = bestGap(blocks, y0, BOTTOM);
@@ -532,6 +553,7 @@
   P.arrivalOf = function (o, fwd) {
     var p = this.player, sg;
     if (o.kind === 'wall' || o.kind === 'swall') return Math.max(0, (o.x - p.x) / Math.max(60, fwd - (o.vx || 0)));
+    if (o.kind === 'floorhaz') return Math.max(0, (o.x - p.x) / Math.max(60, fwd));
     sg = o.mv && o.mv.segs && o.mv.segs[o.mv.idx];
     return Math.max(0, (o.x - p.x) / Math.max(60, fwd + Math.abs(o.vx || (sg ? sg.vx : 0))));
   };
@@ -570,7 +592,7 @@
   };
   // spawn a threat species; when the fairness checks fail the new bodies are removed again (the caller retries soon)
   P.spawnThreat = function (id) {
-    var def = CR[id], sm = SM[id] || { p: 'STRAIGHT' }, tries, y, n0, fresh, strict = (this.fairFails || 0) < 12;
+    var def = CR[id], sm = SM[id] || { p: 'STRAIGHT' }, tries, y, n0, fresh, strict = (this.fairFails || 0) < 12, floorOnly = false;
     if (this.bossBusy()) return null;                                                 // boss priority: no normal threat while a boss wave is queued / telegraphed / on its way
     for (tries = 0; tries < 10; tries++) {                                          // 4 lane picks, then free heights (a big body may fit only in a narrow band)
       y = def.sband === 'floor' || sm.p === 'FLOOR' || sm.p === 'AMBUSH_DASH' || sm.p === 'STATIC' ? FLOOR : (tries < 4 ? this.laneY(def, sm.p) : this.rng.range(this.waterY + 80, FLOOR - 80));
@@ -582,10 +604,14 @@
       if (tries >= 6 && sm.p !== 'ZIGZAG') fresh.forEach(function (c) { this.capBr(c, BAL.BOSSES.MAX_BR); }, this);               // a big predator keeps a collider that leaves the corridor (UC-OE-101: the big forms get their grouper again)
       // a big single straight mover (giant squid, leviathan...) leaves a free corridor on one side only when it sits near the top or the bottom of the play band: fit its lane
       if (fresh.length === 1 && fresh[0].br > 90 && sm.p !== 'FLOOR' && sm.p !== 'AMBUSH_DASH' && sm.p !== 'STATIC' && sm.p !== 'BOSS' && (fresh[0].br > 130 || ((sm.p === 'STRAIGHT' || sm.p === 'ONE_TURN') && !(fresh[0].mv && fresh[0].mv.segs && fresh[0].mv.segs.some(function (sg) { return sg.vy; }))))) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, this.needGap(CORR_MARGIN + 30, fresh));
-      if (fresh.length && this.fairOK(fresh) && this.fairOver(fresh, null, strict)) { this.fairFails = 0; return fresh[0]; }
+      this.floorFair = true;                                                            // PT2-2: stinging corals / anemones on the way count as blocks too
+      var fair = fresh.length && this.fairOK(fresh) && this.fairOver(fresh, null, strict);
+      this.floorFair = false;
+      if (fair) { this.fairFails = 0; return fresh[0]; }
+      if (!floorOnly && fresh.length && this.floorFairNear()) floorOnly = this.fairOK(fresh) && this.fairOver(fresh, null, strict);      // refused only because of a coral: wait, never go lenient for it
       this.creatures.length = n0;
     }
-    this.fairFails = (this.fairFails || 0) + 1;
+    if (!floorOnly) this.fairFails = (this.fairFails || 0) + 1;
     return null;
   };
   P.spawnLogicSide = function (dt) {
@@ -683,8 +709,15 @@
       this.sT.env.struct = 1.5;                                                     // delay
       return;
     }
+    if (kind === 'coral' || kind === 'anemone') { var gx = -1e9; this.obs.forEach(function (q) { if (q.haz && !q.dead) gx = Math.max(gx, q.x); }); x = Math.max(x, gx + BAL.OBS_HAZ.minGapX); }      // PT2-2: >= 600 between stinging floor obstacles
     this.addObstacle(kind, 0, 1, x);
-    if (kind === 'coral' || kind === 'rock') { var o = this.obs[this.obs.length - 1]; if (o) { o.solid = false; if (kind === 'rock') o.decor = true; } }   // decoration in this mode: prey stays edible, nothing blocks
+    if (kind === 'coral' || kind === 'rock') { var o = this.obs[this.obs.length - 1]; if (o) { o.solid = false; if (kind === 'rock') o.decor = true; } }   // never solid in this mode (nothing blocks the scroll); a coral still stings (PT2-2)
+    if (kind === 'coral' || kind === 'anemone') {                                    // PT2-2: a stinging floor obstacle closes the bottom of the water column: it must leave the corridor (R-OE-33) with the threats on the way
+      var fo = this.obs[this.obs.length - 1];
+      this.floorFair = true;
+      if (fo && fo.haz && !this.fairOver([], [this.floorHazBlock(fo)])) { this.obs.pop(); this.sT.env[kind] = 1.5; }
+      this.floorFair = false;
+    }
     if (kind === 'brock' || kind === 'ruin') { var b = this.obs[this.obs.length - 1]; if (b) b.solid = false; }
   };
   // the 300 px gap of walls, shock walls and columns; it grows a little for the biggest bodies so every form can fit [DEFAULT - tune]
