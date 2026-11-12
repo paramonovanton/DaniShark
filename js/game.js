@@ -178,7 +178,7 @@
     this.sim = new OE.Sim({ world: world, level: level, viewW: this.viewW, controlMode: this.save.settings.controlMode, seed: this.seedValue === null ? (Date.now() & 0xffffff) : this.seedValue });
     this.run = { world: world, level: level, replay: replay, phase: opts.skipBanner ? 'play' : 'start', timer: BAL.levelStartS, result: null, pauseState: 'Default', winDelay: 0, evoT: 0, evo: null, hintDone: {}, lastPhaseBeforePause: 'play', evoLightT: 0, evoLightTo: 0, krakenT: 0, krakenPending: false, krakenHearts: 3, bossEaten: false, endReason: null };
     this.acc = 0;
-    if (this.assets) { var lids = this.assets.levelIds(world, 1, level); if (this.assets.retain) this.assets.retain(lids); this.assets.preload(lids); }   // world sprites + current/next form; everything else is released (BUG-U4); the banner waits for them (see update)
+    if (this.assets) { var lids = this.assets.levelIds(world, 1, level); if (this.assets.retain) this.assets.retain(lids); this.assets.preload(lids); if (OE.Browser && OE.Browser.bootMark) OE.Browser.bootMark(10000); }   // BUG-U6: a level loading its art is a heavy moment for the crash guard   // world sprites + current/next form; everything else is released (BUG-U4); the banner waits for them (see update)
     this.initHint();
     this.track('Level_Start', { lvl: this.lvlNumber(world, level), world: world, level_in_world: level, replay: replay, control_mode: this.sim.controlMode });
     this.changed();

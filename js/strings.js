@@ -15,7 +15,7 @@
     oe_locked_title: '{0} is locked', oe_locked_hint: 'Complete {0} to unlock',
     oe_pick_title: '{0}', oe_pick_hint: 'Pick a level to replay', oe_pick_level: 'Level {0}', oe_pick_final: 'Final',
     oe_settings_title: 'Settings', oe_settings_version: 'v0.3.0', oe_settings_sound: 'Sound', oe_settings_music: 'Music',
-    oe_settings_haptics: 'Vibration', oe_settings_control: 'Controls', oe_settings_control_side: 'Side-scroller', oe_settings_control_classic: 'Classic',
+    oe_settings_haptics: 'Vibration', oe_settings_lite: 'Lite graphics', oe_lite_restart: 'Restarting with the new graphics setting', oe_settings_control: 'Controls', oe_settings_control_side: 'Side-scroller', oe_settings_control_classic: 'Classic',
     oe_settings_control_side_hint: 'Tap to swim up. The shark swims forward by itself.', oe_settings_control_classic_hint: 'Touch and hold to swim anywhere.', oe_settings_reset: 'Reset progress',
     oe_settings_reset_warn: 'Delete all progress and start again?', oe_settings_confirm: 'Delete',
     oe_settings_cancel: 'Cancel',

@@ -44,11 +44,13 @@
         todo.push(id);
       }
       if (!todo.length) { if (cb) cb(1); return 0; }
-      var done = 0;
-      todo.forEach(function (tid) {
+      var done = 0, ios = !!(OE.Browser && OE.Browser.ios), active = 0, queue = todo.slice(), MAXC = 4;
+      // BUG-U6: on iOS at most 4 images are fetched / decoded at a time (each decode briefly holds the compressed and the decoded bitmap)
+      function next() { while (queue.length && (!ios || active < MAXC)) { active++; start(queue.shift()); } }
+      function start(tid) {
         var img = new Image(), file = self.src(tid);
-        self.pending[tid] = true; self.loading++; self.stats.requested++;
-        function fin() { delete self.pending[tid]; self.loading--; done++; if (cb) cb(done / todo.length); }
+        self.stats.requested++;
+        function fin() { delete self.pending[tid]; self.loading--; done++; active--; if (cb) cb(done / todo.length); next(); }
         img.onload = function () {
           if (self.keep && !self.keep[tid]) { self.stats.released = (self.stats.released || 0) + 1; img.onload = img.onerror = null; img.src = ''; fin(); return; }     // a retain() dropped it while it loaded
           self.images[tid] = img; self.stats.loaded++; fin();
@@ -56,11 +58,13 @@
         img.onerror = function () {
           // a bad webp falls back to the png once
           var e = self.manifest[tid];
-          if (e && typeof e === 'object' && e.png && file !== e.png) { img.onerror = function () { self.failed.push(tid); fin(); }; img.src = e.png; return; }
+          if (e && typeof e === 'object' && e.png && file !== e.png && !ios) { img.onerror = function () { self.failed.push(tid); fin(); }; img.src = e.png; return; }     // iOS: no PNG fallback (procedural art instead)
           self.failed.push(tid); fin();
         };
         img.src = file;
-      });
+      }
+      todo.forEach(function (tid) { self.pending[tid] = true; self.loading++; });
+      next();
       return todo.length;
     },
     // BUG-U4: drop every decoded image that is not in `ids` (references released, src emptied so Safari frees the bitmap); the art comes back by preload when needed

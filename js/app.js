@@ -36,13 +36,14 @@
     S = Math.max(0.05, Math.min(aw / stageW, ah / BAL.VIEW_H));
     var left = (aw - stageW * S) / 2, top = (ah - BAL.VIEW_H * S) / 2;
     stage.style.width = stageW + 'px'; stage.style.height = BAL.VIEW_H + 'px';
-    stage.style.transform = 'scale(' + S + ')'; stage.style.left = left + 'px'; stage.style.top = top + 'px';
+    if (Br.ios) { stage.style.transform = 'none'; stage.style.zoom = S; stage.style.left = (left / S) + 'px'; stage.style.top = (top / S) + 'px'; }      // BUG-U6: CSS zoom lays the stage out at its real size (a transformed 1920 x 1080 stage is rasterized at 1920 x 1080 x dpr^2 by WebKit); left / top are zoomed too
+    else { stage.style.zoom = ''; stage.style.transform = 'scale(' + S + ')'; stage.style.left = left + 'px'; stage.style.top = top + 'px'; }
     stage.style.setProperty('--view-w', stageW + 'px');
     stage.setAttribute('data-view-w', stageW);
     if (stageW < BAL.HUD_NARROW_W) stage.setAttribute('data-narrow', ''); else stage.removeAttribute('data-narrow');
     document.documentElement.setAttribute('data-insets', [m.t, m.r, m.b, m.l].map(Math.round).join(','));
     ui.fitGen = (ui.fitGen || 0) + 1;                                   // labels are re-fitted after a layout change (Wide / Narrow copies switch)
-    render.resize(viewW * S, Math.min(g.devicePixelRatio || 1, Br.dprCap()), viewW);      // BUG-U4: mobile tier <= 1.5, lite 1
+    render.resize(viewW * S, Math.min(Br.devDpr(), Br.dprCap()), viewW);      // BUG-U4: mobile tier <= 1.5, lite 1
     game.setView(viewW / BAL.ZOOM);                                   // CR-4: the game works in world units: visible width = view / ZOOM
     game.setPortrait(tall && Br.touchPhone(m.vw, m.vh));
     OE.fitInfo = { vw: m.vw, vh: m.vh, insets: [m.t, m.r, m.b, m.l], area: [m.aw, m.ah], scale: S, stageW: stageW, left: m.l + left, top: m.t + top };
@@ -70,7 +71,7 @@
   g.addEventListener('blur', function () {
     setTimeout(function () { if (!document.hasFocus || !document.hasFocus()) game.focusLost(); }, 0);   // hasFocus() is false when the whole frame lost focus
   });
-  g.addEventListener('pagehide', function () { game.commit(); });
+  g.addEventListener('pagehide', function () { game.commit(); Br.bootOk(); });           // left normally: not a crash
   // Fullscreen problems (refused, or unavailable in this frame) show a short toast
   Br.onFullscreenProblem = function (reason, msg) { ui.toast(msg); };
 
@@ -79,7 +80,7 @@
   OE.Assets.init();
   // BUG-U4: the crash-loop guard sent this tab into lite mode (the page kept reloading): a small note says so
   if (Br.guardTripped) setTimeout(function () { ui.toast(OE.t('oe_lite_note')); }, 2500);
-  OE.Assets.preload(OE.Assets.bootIds(1), function (p) { game.setLoadProgress(p); });
+  OE.Assets.preload(OE.Assets.bootIds(1), function (p) { game.setLoadProgress(p); if (p >= 1 && !Br.bootT && !Br.bootCleared) Br.bootMark(10000); });     // BUG-U6: the crash guard's boot marker is cleared after 10 s of running
   game.on('change', function () { /* ui picks it up in sync() */ });
 
   var ctxQA = { game: game, ui: ui, input: OE.Input, setViewport: setViewport, fit: fit, afterStep: function () { ui.sync(0); render.draw(16); } };

@@ -157,15 +157,23 @@
      desktop: full art.  mobile (touch / iOS / low deviceMemory): small backgrounds and cards, only the current world's art decoded, canvas dpr <= 1.5.
      lite: procedural backgrounds, no hi-res art, dpr 1. Lite is entered by ?lite=1 / ?tier=lite, or by the guard: a mobile page that reloads 3 times within 20 s
      (iOS Safari restarts a tab that ran out of memory) starts in lite mode and stays lite for the rest of the tab session (?lite=0 leaves it).
-     ?tier=desktop|mobile|lite forces a tier (tests, emulation); ?qa=1 never trips the guard. */
+     ?tier=desktop|mobile|lite forces a tier (tests, emulation); ?qa=1 never trips the guard.
+     BUG-U6: ios (iPhone / iPad, also iPadOS with a desktop user agent + touch) is a mobile tier with its own limits (B.ios, html.tier-ios): canvas at dpr 1
+     (<= 1170 px wide), the stage sized with CSS zoom instead of a transform (WebKit keeps a transformed layer at its untransformed size x dpr^2), no CSS
+     filters / masks / shadows / will-change (css/windows.css), at most 4 images decoding at a time, no PNG fallback. ?tier=ios emulates it.
+     Crash guard (mobile tiers): a boot marker is written to localStorage before the art loads and cleared after 10 s of stable running (or when the page is
+     left normally); a page that starts with the marker still set died while loading or playing, so it starts in lite mode at once (one crash, not three).
+     Settings > Lite graphics keeps lite on (localStorage oe_lite_pref) until it is turned off. */
   function detectTier(searchOverride) {
-    var s = searchOverride !== undefined ? searchOverride : ((g.location && g.location.search) || ''), nav = g.navigator || {}, ua = nav.userAgent || '', m = /[?&]tier=(desktop|mobile|lite)/.exec(s), tier, i;
+    var s = searchOverride !== undefined ? searchOverride : ((g.location && g.location.search) || ''), nav = g.navigator || {}, ua = nav.userAgent || '', m = /[?&]tier=(desktop|mobile|lite|ios)/.exec(s), tier, i, ls = null;
     var ios = /iPhone|iPad|iPod/.test(ua) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
     var coarse = false; try { coarse = !!(g.matchMedia && g.matchMedia('(pointer: coarse)').matches); } catch (e) { /* ignore */ }
     tier = (ios || coarse || (nav.deviceMemory && nav.deviceMemory <= 4)) ? 'mobile' : 'desktop';
-    if (m) tier = m[1];
-    B.ios = !!ios; B.guardReloads = 0; B.guardTripped = false;
+    if (m) { tier = m[1]; if (tier === 'ios') ios = true; else if (tier !== 'mobile') ios = false; }
+    if (tier === 'ios') tier = 'mobile';
+    B.ios = !!ios && tier !== 'desktop'; B.guardReloads = 0; B.guardTripped = false; B.bootStale = false; B.litePref = false;
     var guardOn = (tier !== 'desktop' && !/[?&]qa=1(&|$)/.test(s)) || /[?&]guard=1(&|$)/.test(s);
+    B.guardOn = guardOn;
     try {
       var ss = g.sessionStorage, now = Date.now(), arr, kept = [];
       if (/[?&]lite=0(&|$)/.test(s)) { ss.removeItem('oe_lite'); ss.removeItem('oe_loads'); }
@@ -177,12 +185,36 @@
         g.setTimeout(function () { try { ss.removeItem('oe_loads'); } catch (e) { /* ignore */ } }, 25000);   // it stayed up: not a crash loop
       }
     } catch (e0) { /* storage blocked: no guard */ }
+    try { ls = g.localStorage; } catch (e2) { ls = null; }
+    if (ls) {
+      try {
+        if (/[?&]lite=0(&|$)/.test(s)) { ls.removeItem('oe_lite_pref'); ls.removeItem('oe_boot'); }
+        if (ls.getItem('oe_lite_pref') === '1' && !m) { B.litePref = true; tier = 'lite'; }          // the player's choice (a forced ?tier= wins: tests, emulation)
+        if (guardOn) {
+          if (ls.getItem('oe_boot')) { B.bootStale = true; B.guardTripped = true; tier = 'lite'; try { g.sessionStorage.setItem('oe_lite', '1'); } catch (e3) { /* ignore */ } }
+          ls.setItem('oe_boot', String(Date.now()));
+        }
+      } catch (e4) { /* storage blocked: no marker */ }
+    }
     if (/[?&]lite=1(&|$)/.test(s)) tier = 'lite';
     B.tier = tier; B.lite = tier === 'lite';
-    try { g.document.documentElement.className += ' tier-' + tier; } catch (e1) { /* ignore */ }
+    try { var de = g.document.documentElement; de.className = (de.className || '').replace(/\s*tier-\w+/g, '') + ' tier-' + tier + (B.ios ? ' tier-ios' : ''); } catch (e1) { /* ignore */ }
   }
   B.tier = 'desktop'; B.lite = false; B.ios = false;
-  B.dprCap = function () { return this.lite ? 1 : (this.tier === 'mobile' ? 1.5 : 2); };
+  // the device pixel ratio; ?edpr=3 emulates a phone's ratio in a desktop browser (BUG-U6 measurements: canvas backing and the layer estimate of ?mem=1)
+  B.devDpr = function () { var q = /[?&]edpr=([0-9.]+)/.exec((g.location && g.location.search) || ''); return q ? parseFloat(q[1]) : (g.devicePixelRatio || 1); };
+  B.dprCap = function () { return this.lite || this.ios ? 1 : (this.tier === 'mobile' ? 1.5 : 2); };
+  // the page ran 10 s after loading (or is left normally): clear the boot marker of the crash guard
+  // a heavy moment (boot, a level loading its art): the marker is set and cleared again after ms of running (10 s)
+  B.bootMark = function (ms) {
+    var self = this; if (!this.guardOn) return;
+    try { g.localStorage.setItem('oe_boot', String(Date.now())); } catch (e) { return; }
+    if (this.bootT) g.clearTimeout(this.bootT);
+    this.bootT = g.setTimeout(function () { self.bootT = null; self.bootOk(); }, ms || 10000);
+  };
+  B.bootOk = function () { try { g.localStorage.removeItem('oe_boot'); } catch (e) { /* ignore */ } this.bootCleared = true; };
+  // Settings > Lite graphics: kept in localStorage, applied on the next load (the tier decides what is decoded at boot)
+  B.setLitePref = function (on) { try { if (on) g.localStorage.setItem('oe_lite_pref', '1'); else { g.localStorage.removeItem('oe_lite_pref'); g.sessionStorage.removeItem('oe_lite'); g.sessionStorage.removeItem('oe_loads'); } } catch (e) { /* ignore */ } this.litePref = !!on; };
   B.mobileTier = function () { return this.tier !== 'desktop'; };
   B.detectTier = detectTier;
   detectTier();

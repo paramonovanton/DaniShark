@@ -98,6 +98,16 @@
       var halve = function (root) { Array.prototype.forEach.call(root.querySelectorAll('canvas'), function (c) { if (c.id !== 'arena-canvas' && !c.getAttribute('data-half') && c.width > 64) { c.width = Math.round(c.width / 2); c.height = Math.round(c.height / 2); c.setAttribute('data-half', '1'); } }); };
       halve(document); Array.prototype.forEach.call(document.querySelectorAll('template'), function (t) { halve(t.content); });
     }
+    // BUG-U6: Settings > Lite graphics, a copy of the Vibration row in the free right column (under Reset Progress); it takes effect on the next load
+    var hr = W.settings && one(W.settings, 'Haptics Row');
+    if (hr && !one(W.settings, 'Lite Row')) {
+      var lr = hr.cloneNode(true), lt = lr.querySelector('[data-component="CMP_Cmn_Toggle"]'), ll = one(lr, 'Label'), li = one(lr, 'Icon');
+      lr.setAttribute('data-layer', 'Lite Row'); lr.setAttribute('data-name', 'Lite Row'); lr.style.left = '520px'; lr.style.right = '30px';
+      if (lt) { lt.setAttribute('data-layer', 'Lite Toggle'); lt.setAttribute('data-name', 'Lite Toggle'); }
+      if (ll) { ll.setAttribute('data-loc', 'oe_settings_lite'); ll.style.left = '24px'; ll.style.width = '222px'; ll.style.fontSize = '36px'; ll.style.whiteSpace = 'nowrap'; }
+      if (li) li.hidden = true;
+      hr.parentNode.appendChild(lr);
+    }
     loc(document);
     this.arena = document.getElementById('arena');
     this.notice = document.getElementById('notice');
@@ -143,6 +153,7 @@
       Array.prototype.forEach.call(win.querySelectorAll('[data-component="CMP_Cmn_Toggle"]'), function (el) {
         var setting = { 'Sound Toggle': 'sound', 'Music Toggle': 'music', 'Haptics Toggle': 'haptics' }[el.getAttribute('data-layer')];
         if (setting) el.addEventListener('click', function () { self.click(); game.toggleSetting(setting); });
+        if (el.getAttribute('data-layer') === 'Lite Toggle') el.addEventListener('click', function () { self.click(); self.toggleLite(); });
       });
     });
 
@@ -268,7 +279,7 @@
     var self = this, c = this.carousel, drag = null;
     c.addEventListener('pointerdown', function (e) {
       if (self.game.main.popup) return;
-      var s = self.stage.getBoundingClientRect().width / self.stage.offsetWidth, now = performance.now();
+      var s = OE.Browser && OE.Browser.ios && OE.fitInfo ? OE.fitInfo.scale : self.stage.getBoundingClientRect().width / self.stage.offsetWidth, now = performance.now();
       drag = { x: e.clientX, pos: self.pos, s: s || 1, dx: 0, moved: false, lastX: e.clientX, lastT: now, v: 0 };
       self.anim = null;
     });
@@ -335,6 +346,13 @@
       this.noticeShown = true; setText(this.notice, T('oe_notice_nosave')); this.notice.classList.remove('info'); this.notice.classList.add('on');
     }
   };
+  // BUG-U6: Lite graphics on / off: kept in localStorage; the page restarts so the tier (what is decoded, the canvas resolution) changes now (not under ?qa=1)
+  P.toggleLite = function () {
+    var Br = OE.Browser, on = !(Br.litePref || Br.lite);
+    Br.setLitePref(on); this.game.track('SettingChanged', { setting: 'lite', value: String(on) }); this.game.commit();
+    this.W.settings.__v = null; this.syncSettings(this.W.settings);
+    if (!/[?&]qa=1(&|$)/.test(g.location.search)) { this.toast(T('oe_lite_restart')); g.setTimeout(function () { try { g.location.reload(); } catch (e) { /* ignore */ } }, 900); }
+  };
   // toggles (Value=On/Off), control mode selector (Selected=Side/Classic) and its hint
   P.syncSettings = function (win) {
     var s = this.game.save.settings, self = this;
@@ -344,6 +362,8 @@
       var on = !!s[setting];
       self.variant(el, on ? 'Value=On' : 'Value=Off'); el.setAttribute('aria-checked', on);
     });
+    var lite = one(win, 'Lite Toggle'), Br = OE.Browser;
+    if (lite && Br) { var lon = !!(Br.litePref || Br.lite); self.variant(lite, lon ? 'Value=On' : 'Value=Off'); lite.setAttribute('aria-checked', lon); }
     var sel = one(win, 'Control Mode Selector');
     if (sel) {
       this.variant(sel, s.controlMode === 'classic' ? 'Selected=Classic' : 'Selected=Side');

@@ -114,6 +114,29 @@ html.tier-mobile .fx-vignette:not(.flash), html.tier-lite .fx-vignette:not(.flas
 html.tier-lite .stage .card.pulse > [data-layer="Frame"] { animation: none; }
 html.tier-mobile .stage button, html.tier-lite .stage button { transition: none; }
 
+/* BUG-U6 (iOS WebKit memory: every composited layer / filter / mask costs a bitmap at dpr 3): on iOS and in lite mode no CSS filters, no drop-shadows,
+   no will-change, no transform on pressed buttons, and the tinted 9-slice plates (mask-box-image / mask-border) become plain rounded CSS plates */
+html.tier-ios .stage button, html.tier-lite .stage button { transition: none !important; }
+html.tier-ios .stage button:not(:disabled):hover, html.tier-lite .stage button:not(:disabled):hover { filter: none; }
+html.tier-ios .stage button:not(:disabled):active, html.tier-lite .stage button:not(:disabled):active { filter: none; transform: none; opacity: .82; }
+html.tier-ios .stage button:disabled, html.tier-lite .stage button:disabled { filter: none; opacity: .5; }
+html.tier-ios .stage .unavail, html.tier-lite .stage .unavail { filter: none; opacity: .45; }
+html.tier-ios .stage .card.pulse > [data-layer="Frame"] { animation: none; }
+html.tier-ios .stage .win-start.final [data-layer="Banner Plate"], html.tier-lite .stage .win-start.final [data-layer="Banner Plate"] { filter: none; }
+html.tier-ios .fx-glow, html.tier-lite .fx-glow { display: none; }
+html.tier-ios .stage .win-popup.on [data-layer="Window"], html.tier-lite .stage .win-popup.on [data-layer="Window"] { animation: none; }          /* the pop-in would hold a window-sized layer while it runs */
+html.tier-ios .stage *, html.tier-lite .stage * { will-change: auto !important; }
+html.tier-ios #stage, html.tier-lite #stage, html.tier-ios .stage [style*="box-shadow"], html.tier-lite .stage [style*="box-shadow"] { box-shadow: none !important; }
+html.tier-ios .stage [style*="mask-box-image"], html.tier-lite .stage [style*="mask-box-image"],
+html.tier-ios .stage [data-layer="Light Banner"] > [data-layer="Banner Plate"], html.tier-lite .stage [data-layer="Light Banner"] > [data-layer="Banner Plate"] {
+  -webkit-mask-box-image: none !important; mask-border: none !important; -webkit-mask: none !important; mask: none !important; border-radius: 40px;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, 0) 52%, rgba(0, 0, 0, .16)) !important; }
+html.tier-ios .stage [style*="Bar_Fill"], html.tier-lite .stage [style*="Bar_Fill"] { border-radius: 20px; }
+html.tier-ios .stage [style*="StartBanner"], html.tier-lite .stage [style*="StartBanner"], html.tier-ios .stage [data-layer="Light Banner"] > [data-layer="Banner Plate"], html.tier-lite .stage [data-layer="Light Banner"] > [data-layer="Banner Plate"] { border-radius: 60px; }
+
+/* BUG-U6: Settings > Lite graphics row (a copy of the Vibration row, js/ui.js): one line */
+.stage [data-layer="Lite Row"] [data-layer="Label"], .stage [data-layer="Lite Row"] [data-layer="Label"] .t { white-space: nowrap !important; font-size: 36px !important; }
+
 /* CR-4 v5.1: confetti of the Kraken celebration (T_Game_Evolution / LightKraken) */
 .stage .confetti-piece { position: absolute; top: -40px; width: 14px; height: 26px; border-radius: 3px; opacity: .95; animation: confetti 2.2s linear infinite; }
 @keyframes confetti { 0% { translate: 0 -40px; rotate: 0deg; } 100% { translate: 40px 1180px; rotate: 720deg; } }
