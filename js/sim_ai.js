@@ -575,7 +575,8 @@
     this.emit('eat', { type: c.type, x: c.x, y: c.y, gp: gp, len: c.len, rich: c.def.rich || 1 });
     this.gain(gp);
   };
-  P.collideCreatures = function () {
+  // air = the player is airborne (surface jump): only the eating part runs (prey eaten, touch-but-no-eat logged); no bump, damage or sting during the flight
+  P.collideCreatures = function (air) {
     var p = this.player, i, c;
     for (i = 0; i < this.creatures.length; i++) {
       c = this.creatures[i];
@@ -585,13 +586,14 @@
       if (role !== 'prey' && role !== 'hazard' && c.def.k !== 'pas' && !c.inflated && c.size <= this.S / BAL.eatRatio + 1e-9) { c.role = role = this.roleOf(c); }      // PT2-3: the player grew this step (an earlier bite / evolution): the role follows at once
       if (role === 'prey') {
         var dxp = p.x - c.x;
-        if (sp.armor && dxp * c.facing > 0.1 * c.len && Math.abs(p.y - c.y) < 0.4 * c.len) { if (this.bodyHit(c)) { this.bump(c); this.logTouchNoEat(c, 'armor'); } continue; }   // head-on = bump
-        if (sp.tail && dxp * c.facing < -0.15 * c.len && this.bodyHit(c)) { this.damage({ name: c.def.n, kind: 'hazard', id: c.type }, c.x, c.y); this.logTouchNoEat(c, 'tail'); continue; }   // tail sting from behind
+        if (sp.armor && dxp * c.facing > 0.1 * c.len && Math.abs(p.y - c.y) < 0.4 * c.len) { if (this.bodyHit(c)) { if (!air) this.bump(c); this.logTouchNoEat(c, 'armor'); } continue; }   // head-on = bump
+        if (sp.tail && dxp * c.facing < -0.15 * c.len && this.bodyHit(c)) { if (!air) this.damage({ name: c.def.n, kind: 'hazard', id: c.type }, c.x, c.y); this.logTouchNoEat(c, 'tail'); continue; }   // tail sting from behind
         if (this.eatHit(c)) this.eatCreature(c);
         continue;
       }
       if (!this.bodyHit(c)) continue;
       if (role === 'peer') this.logTouchNoEat(c, 'peer');
+      if (air) continue;
       if (role === 'peer') {
         if (sp.lunge && c.state === 'lunge') this.damage({ name: c.def.n, kind: 'eaten', id: c.type }, c.x, c.y);
         else this.bump(c);

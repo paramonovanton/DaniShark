@@ -616,7 +616,7 @@
       this.last.hudCoins = sv.coins;
     }
     var lvl = T('oe_hud_level', T('oe_world_name_' + r.world), r.level);
-    var lvlShort = T('oe_hud_level_short', r.level);
+    var lvlShort = T('oe_hud_level_short', r.world, r.level);
     H.lvlLabel.forEach(function (el) {                                                  // PT2-1 (Figma hudCheck, ui/generated/ui.css): the Wide label is the short form, the Narrow one the full form fitted at >= 26 px (short form as the fallback)
       var wide = el.closest && el.closest('[data-layout="Wide"]');
       this.fitText(el, wide ? lvlShort : lvl, { min: BAL.UI_FIT.hudMinPx, short: lvlShort });

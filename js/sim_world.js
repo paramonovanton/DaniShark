@@ -156,7 +156,7 @@
     if (!this.side) bx = clamp(bx, 90, W - 90);
     switch (kind) {
       case 'coral': r = rng.range(60, 90); this.obs.push({ id: this.nextId++, kind: 'coral', shape: 'c', x: bx, y: FLOOR - r * 0.4, r: r, solid: true, fore: true, haz: true, name: BAL.OBS_HAZ.names.coral }); break;      // PT2-2: corals hurt
-      case 'rock': r = rng.range(40, 70); this.obs.push({ id: this.nextId++, kind: 'rock', shape: 'c', x: clamp(bx + 90, 90, W - 90), y: FLOOR - r * 0.45, r: r, solid: false, decor: true });          // a plain rock is decoration only (user playtest): no collision, no bump, not in the fairness break;
+      case 'rock': r = rng.range(40, 70); this.obs.push({ id: this.nextId++, kind: 'rock', shape: 'c', x: clamp(bx + 90, 90, W - 90), y: FLOOR - r * 0.45, r: r, solid: false, decor: true }); break;   // a plain rock is decoration only (user playtest): no collision, no bump, not in the fairness (R13 fix: the break was inside this comment, so every rock also added an unchecked anemone)
       case 'anemone': this.obs.push({ id: this.nextId++, kind: 'anemone', shape: 'c', x: clamp(bx + 40, 60, W - 60), y: FLOOR - 20, r: 36, haz: true, name: BAL.OBS_HAZ.names.anemone }); break;
       case 'crevice': this.obs.push({ id: this.nextId++, kind: 'crevice', shape: 'c', x: clamp(bx - 70, 80, W - 80), y: FLOOR - rng.range(30, 160), r: 30 }); break;
       case 'brock': this.obs.push({ id: this.nextId++, kind: 'brock', shape: 'c', x: clamp(bx + 50, 90, W - 90), y: FLOOR - rng.range(60, 140), r: 48, solid: true, breakable: 24, coins: rng.int(3, 5) }); break;
@@ -337,7 +337,7 @@
   P.collide = function (dt) {
     var p = this.player;
     this.collectPickups();
-    if (p.airborne) return;
+    if (p.airborne) { this.collideCreatures(true); return; }             // R-OE-58 (QA round 13): prey is eaten while airborne too; the flight stays harmless (no damage, bumps, obstacles or walls)
     this.collideCreatures();
     this.collideObjs(dt);
     this.collideWallObjs();

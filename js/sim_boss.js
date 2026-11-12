@@ -106,7 +106,10 @@
   // fairness: in the Side-scroller a wave that would break the corridor / window rule is delayed (0.25 s steps, up to 2 s) and then goes anyway
   P.bossFair = function (fresh, tries) {
     if (!this.side || !fresh.length) return true;
-    return this.fairOK(fresh) && this.fairOver(fresh, null, true) && this.bossUnionFair(fresh);
+    this.floorFair = true;                                                       // R13 (UC-OE-130): the corals on the way count too; a wave that a coral makes unfair takes its next lane / shape, and a late one still goes (force)
+    var ok = this.fairOK(fresh) && this.fairOver(fresh, null, true) && this.bossUnionFair(fresh);
+    this.floorFair = false;
+    return ok;
   };
   // QA's metric (UC-OE-76 / XR-OE-76-BOSS): over any 1.5 s look-ahead the bodies that overlap the player's column block [y - br, y + br] over the whole stretch they sweep while they overlap it;
   // the largest free gap of the play band must stay >= 300. The extents are computed from the straight lines the scripted bodies fly (walls and the other threats included).
@@ -129,6 +132,10 @@
       if ((o.kind !== 'wall' && o.kind !== 'swall') || o.x < p.x - 100) return;
       var cl = Math.max(60, fwd - (o.vx || 0)), t = (o.x - p.x) / cl, h = (o.w / 2 + p.r * 0.7) / cl;
       items.push({ t0: Math.max(0, t - h), t1: t + h, lo: Y0, hi: o.gapY - o.gapH / 2 }, { t0: Math.max(0, t - h), t1: t + h, lo: o.gapY + o.gapH / 2, hi: Y1 });
+    });
+    if (this.floorFair) this.floorHazBlocks().forEach(function (fb) {                 // R13: stinging floor obstacles = static blocks from their drawn top to the seabed
+      var cl = Math.max(60, fwd), t = (fb.x - p.x) / cl, h = (fb.w / 2 + p.len * 0.35) / cl;
+      if (t + h >= 0) items.push({ t0: Math.max(0, t - h), t1: t + h, lo: fb.top, hi: Y1 });
     });
     items.forEach(function (it) { tmax = Math.max(tmax, it.t1); });
     for (ts = 0; ts <= tmax + 0.05; ts += 0.1) {

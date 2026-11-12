@@ -151,7 +151,7 @@
         Array.prototype.forEach.call(hud.querySelectorAll('[data-layer="HUD Top"]'), function (t) { if (!top && t.getClientRects().length) top = t; });
         var out = { scale: { x: Math.round(sx * 10000) / 10000, y: Math.round(sy * 10000) / 10000 }, layout: layout, visible: !!top, texts: [], formTrack: null, growthBar: null };
         if (!top) return out;
-        var lvl = game.run ? OE.t('oe_hud_level_short', game.run.level) : null;
+        var lvl = game.run ? OE.t('oe_hud_level_short', game.run.world, game.run.level) : null;
         [['Level Label/Label', 'Level Label'], ['Creature Chip/Form Name', 'Creature Chip'], ['Creature Chip/Size', 'Creature Chip'], ['Coin Counter/Value', 'Coin Counter']].forEach(function (pr) {
           var el = findLayerIn(top, pr[0]), plate = findLayerIn(top, pr[1]);
           if (el && plate && el.getClientRects().length) out.texts.push(measure(pr[0], el, plate));

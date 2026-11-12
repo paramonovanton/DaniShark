@@ -268,7 +268,7 @@
   BAL.BOSSES = {
     PHASE_GP_3: [180, 300], PHASE_GP_2: [240], TELEGRAPH_S: 1.0, GAP_MIN: 380, MAX_BR: 130, COMMON: { WAVE_TIMING: { maxDelayLow: 2.0, maxDelayHigh: 4.0, dropHighPct: 0.15, highFromForm: 7 } }, FINALE: { rel: 0.8, drift: 120, length_s: 10, coinsEaten: 50, coinsRetreat: 25 },
     LIST: { 1: { id: 'grouper_boss', name: 'Great Grouper', phases: 3 }, 2: { id: 'lionfish', name: 'Lionfish Pair', phases: 2 }, 3: { id: 'anglerfish', name: 'Anglerfish', phases: 3 },
-            4: { id: 'orca', name: 'Orca Pod', phases: 3 }, 5: { id: 'submarine', name: 'Submarines and Giant Squid', phases: 3 }, 6: { id: 'mosa', name: 'Mosasaurus', phases: 3 }, 7: { id: 'bloop', name: 'The Bloop', phases: 3 } }
+            4: { id: 'orca', name: 'Orca Pod', phases: 3 }, 5: { id: 'submarine', name: 'Submarines & Squid', phases: 3 }, 6: { id: 'mosa', name: 'Mosasaurus', phases: 3 }, 7: { id: 'bloop', name: 'The Bloop', phases: 3 } }
   };
   /* PT2-5 (spec v5.5 constants.BAL.WORLD_GUIDE, R-OE-60/61): the World Guide lists every creature of BAL.ROSTER_REL[world].rel except the boss-only ids, by rel ascending
      (ties by English name A-Z), then the world boss (BAL.BOSSES.LIST) as the last row with the Boss tag. Role chip: hazard / giant lists first, then prey <= 0.87 < peer < 1.15 <= predator.

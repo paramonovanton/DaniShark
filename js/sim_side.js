@@ -453,7 +453,7 @@
         items.push({ t: wt, lo: this.waterY + 20, hi: wo.gapY - wo.gapH / 2, y: wo.gapY, wall: 1, b: 'w' }, { t: wt, lo: wo.gapY + wo.gapH / 2, hi: FLOOR, y: wo.gapY, wall: 1, b: 'w' });
       }
     }
-    this.floorHazBlocks().forEach(function (fb) { if (fb.x + fb.w / 2 > this.player.x - 100) items.push({ t: Math.max(0, (fb.x - this.player.x) / Math.max(60, this.fwd)), lo: fb.top, hi: FLOOR, y: fb.top, wall: 1, b: 'f' }); }, this);   // PT2-2: stinging corals / anemones
+    this.floorHazBlocks().forEach(function (fb) { if (fb.x + fb.w / 2 > this.player.x - 100) items.push({ t: Math.max(0, (fb.x - this.player.x) / Math.max(60, this.fwd)), lo: fb.top, hi: FLOOR, y: fb.top, b: 'f' + fb.id }); }, this);   // PT2-2: stinging corals / anemones (R13: each one also counts in the 2-threat window)
     for (i = 0; i < mine.length; i++) {
       var all = items.concat(mine), near = all.filter(function (q) { return Math.abs(q.t - mine[i].t) < win; }), batches = {}, nb = 0;
       near.forEach(function (q) { if (!q.wall && Math.abs(q.y - mine[i].y) <= SD.predWindow[1] / 2 && !batches[q.b]) { batches[q.b] = 1; nb++; } });
@@ -491,8 +491,9 @@
   };
   // PT2-2: stinging floor obstacles (corals, anemones) as fairness blocks: from the top of their hurt shape down to the seabed, where they stand
   P.floorFairNear = function () { var i, o, px = this.player.x; for (i = 0; i < this.obs.length; i++) { o = this.obs[i]; if (o.haz && !o.dead && o.x > px - 300) return true; } return false; };
-  P.floorHazBlock = function (o) { var h = this.obsHurtShape(o); return { kind: 'floorhaz', id: o.id, x: h.x, vx: 0, w: 2 * h.a, top: h.top }; };
-  // only the normal threat stream and the coral placement weigh them (this.floorFair): boss waves keep their own timing rules
+  // R13 (UC-OE-130): the block is the DRAWN box (state().obstacles: top = y - h / 2, width w), as R-OE-33 and QA measure it, not the smaller hurt ellipse
+  P.floorHazBlock = function (o) { var bx = this.obstacleBox ? this.obstacleBox(o) : null, h; if (!bx) { h = this.obsHurtShape(o); return { kind: 'floorhaz', id: o.id, x: h.x, vx: 0, w: 2 * h.a, top: h.top }; } return { kind: 'floorhaz', id: o.id, x: bx.x, vx: 0, w: bx.w, top: bx.y - bx.h / 2 }; };
+  // the normal threat stream, the coral placement and the boss-wave commit weigh them (this.floorFair; R13: a boss wave picks another lane / shape, a late one still goes)
   P.floorHazBlocks = function () {
     var out = [], i, o, px = this.player.x;
     if (!this.floorFair) return out;
@@ -543,7 +544,7 @@
     }
     for (i = 0; i < walls.length; i++) {
       o = walls[i]; ox = o.x + (o.vx || 0) * t0;
-      if (o.kind === 'floorhaz') { if (ox + o.w / 2 > px0 - p.len * 0.35 && ox - o.w / 2 < px0 + fwd * 1.5 + 200) blocks.push([o.top, BOTTOM]); continue; }
+      if (o.kind === 'floorhaz') { if (ox + o.w / 2 > px0 - p.len * 0.35 && ox - o.w / 2 < px0 + fwd * 1.5 + 200) { blocks.push([o.top, BOTTOM]); preds.push({ y: o.top, b: 'f' + o.id }); } continue; }   // R13: a coral is a static threat in the 2-threat window too (R-OE-33 v5.5)
       if (ox > px0 && ox < px0 + fwd * 1.5 + 200) blocks.push([y0, o.gapY - o.gapH / 2], [o.gapY + o.gapH / 2, BOTTOM]);
     }
     gap = bestGap(blocks, y0, BOTTOM);
@@ -668,7 +669,9 @@
           if (c) { c.cost = 0; grp.push(c); }
         }
         grp.forEach(function (q) { q.batch = grp[0].id; });                         // one group = one threat in the 300 px window rule
+        this.floorFair = true;                                                       // R13: the corals on the way count here too
         if (grp.some(function (q) { return this.isThreat(q); }, this) && !this.fairOver(grp)) { this.creatures.length = nPer; S.per[i] = 1.5; }   // size-relative threat that would break the corridor: retry soon
+        this.floorFair = false;
       }
     }
     // coins

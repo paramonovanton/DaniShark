@@ -52,10 +52,10 @@
     // additions (not in the spec loc block; flagged in the hand-back)
     oe_notice_nosave: 'Progress cannot be saved in this browser.',
     oe_rotate_text: 'Turn your phone sideways to play', oe_rotate_dismiss: 'Play anyway',
-    oe_hud_level_short: 'Level {0}/5',
+    oe_hud_level_short: 'World {0} - Level {1}/5',      // QA round 13 decision (a): the doc's short form for the Wide HUD
     // CR-3: goal banner, bonus phase, light evolution banner, best form
     oe_hud_boss_eat: 'Eat the boss!', oe_evo_kraken: 'Kraken!', oe_evo_kraken_sub: 'You became a Kraken!', oe_wc_world_bonus_val: 'World bonus +{0}', oe_wc_boss_bonus: 'Boss bonus +{0}', oe_wc_boss_bonus_retreat: 'Boss bonus +{0} (it escaped)',
-    oe_boss_name_1: 'Great Grouper', oe_boss_name_2: 'Lionfish Pair', oe_boss_name_3: 'Anglerfish', oe_boss_name_4: 'Orca Pod', oe_boss_name_5: 'Submarines and Giant Squid', oe_boss_name_6: 'Mosasaurus', oe_boss_name_7: 'The Bloop', oe_evo_light: '{0}!', oe_best_form: 'Best: {0}',
+    oe_boss_name_1: 'Great Grouper', oe_boss_name_2: 'Lionfish Pair', oe_boss_name_3: 'Anglerfish', oe_boss_name_4: 'Orca Pod', oe_boss_name_5: 'Submarines & Squid', oe_boss_name_6: 'Mosasaurus', oe_boss_name_7: 'The Bloop', oe_evo_light: '{0}!', oe_best_form: 'Best: {0}',
     /* PT2-5 World Guide (spec v5.5 loc oe_guide_*, oe_crt_*: creature names; spermwhale5 / giantsquid7 share the base names) */
     oe_guide_info: 'Creatures of this world', oe_guide_title: 'Creatures of {0}', oe_guide_order: 'Smallest to largest',
     oe_guide_locked: 'Not unlocked yet: these creatures wait for you', oe_guide_boss: 'Boss', oe_guide_role_prey: 'Prey', oe_guide_role_peer: 'Same size',
