@@ -142,10 +142,12 @@
   // the ones inside it that would make the wave unfair are removed after 0.5 s of waiting. A wave is therefore committed within about 1 s; the telegraph is shown for a wave that is going to come.
   P.bossBusy = function () {
     if (!this.bossInfo || !this.bossIsScripted() || this.finale) return false;
-    if (this.bossHoldT > this.t || this.bossQ.length || this.bossTele.length) return true;
+    if (this.bossHoldT > this.t || this.bossQ.length || this.bossTele.length || this.bossSoon()) return true;
     var i, c; for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; if (c.bossAtk && !c.dead && c.role !== 'prey' && (this.side ? c.x > this.player.x - 400 : c.x + c.len * 0.5 > this.cam.x)) return true; }       // Side: until the body is well behind the player; Classic: while any of it is in the view
     return false;
   };
+  // a director timer is about to fire (within 1.2 s): the normal spawner holds already, so nothing normal appears in the instants around a telegraph
+  P.bossSoon = function () { var T = this.bossInfo && this.bossInfo.T, k; if (!T) return false; for (k in T) if (T[k].t <= 1.2) return true; return false; };
   P.bossPurge = function (fromX) {
     var i, c, n = 0;
     if (!this.side) return 0;                                                  // Classic has no corridor rule: nothing has to make way
@@ -491,12 +493,11 @@
   P.threatMarkers = function () { return this.side ? sideMarkers.call(this) : this.classicMarkers(); };
 
   /* ---- obstacles standing on the seabed (spec v5.4, BAL.FLOOR_OBSTACLES): the bottom edge of every one of them is at y = 990 ---- */
-  var FLOOR_KINDS = { rock: 1, coral: 1, anemone: 1, ruin: 1, vent: 1, lava: 1, seaweed: 1, kelp: 1 };
+  var FLOOR_KINDS = { coral: 1, anemone: 1, ruin: 1, vent: 1, lava: 1, seaweed: 1, kelp: 1 };          // plain rocks are decor (decorList): no collision, sunk 25 % into the seabed
   // the box a floor obstacle is DRAWN in: width, height (sprite aspect) and the centre that puts its bottom edge on the floor line; state().obstacles reports exactly this box (y + h / 2 = bottom)
   P.obstacleBox = function (o) {
     var FL = BAL.FLOOR_OBSTACLES.bottomY, w, h;
     switch (o.kind) {
-      case 'rock': w = o.r * 2.3; h = w * (o.id % 2 ? 623 / 768 : 501 / 768); break;
       case 'coral': w = o.r * 2.4; h = w * (o.id % 2 ? 493 / 768 : 615 / 768); break;
       case 'anemone': w = 120; h = w * 684 / 768; break;
       case 'ruin': w = o.w; h = o.h; break;
@@ -515,8 +516,19 @@
       else out.push({ id: o.id, kind: o.kind, x: o.x, y: o.y, w: o.w || (o.r ? o.r * 2.3 : 150), h: o.h || (o.r ? o.r * 1.8 : 150), floor: false, bottom: Math.round((o.y + (o.h ? o.h / 2 : (o.r || 0) * 0.9)) * 10) / 10 });
     }
     var self = this;
-    for (i = 0; i < this.obs.length; i++) add(this.obs[i]);
+    for (i = 0; i < this.obs.length; i++) { if (this.obs[i].kind === 'rock') continue; add(this.obs[i]); }
     for (i = 0; i < this.zones.length; i++) { o = this.zones[i]; if (FLOOR_KINDS[o.kind]) add(o); }
+    return out;
+  };
+
+  // decoration that is not a gameplay element (plain rocks): the drawn box has 25 % of its height below the floor line (BAL.DECOR_ROCKS.sink); it never collides, bumps, slows or counts in the fairness
+  P.decorList = function () {
+    var out = [], i, o, w, h, sink = BAL.DECOR_ROCKS.sink;
+    for (i = 0; i < this.obs.length; i++) {
+      o = this.obs[i]; if (o.kind !== 'rock') continue;
+      w = o.r * 2.3; h = w * (o.id % 2 ? 623 / 768 : 501 / 768);
+      out.push({ id: o.id, kind: 'rock', decor: true, x: o.x, w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10, y: Math.round((BAL.FLOOR_OBSTACLES.bottomY + sink * h - h / 2) * 10) / 10, bottom: Math.round((BAL.FLOOR_OBSTACLES.bottomY + sink * h) * 10) / 10, sunk: Math.round(sink * h * 10) / 10, solid: !!o.solid });
+    }
     return out;
   };
 })(typeof window !== 'undefined' ? window : globalThis);

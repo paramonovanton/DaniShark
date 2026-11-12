@@ -18,7 +18,8 @@
     // CR-4 (R-OE-06 / 28 / 51): distinct size steps. S at the start of form f = 10 x SIZE_STEP^(f-1) (10, 12.5, 15.6 ... 47.7; length 90, 112.5, 140.6, 175.8, 219.7, 274.7, 343.3, 429.2, at most 445); inside a form S grows by IN_FORM of the gap to the next start; len = LEN_PER_S x S
     SIZE_STEP: 1.25, IN_FORM: 0.15, IN_FORM_SHARE: 0.15, LEN_PER_S: 9,      // spec v5.4: +15 % of the gap inside a form, so every evolution is a step of +20.5 %
     TINT: { PEER: { from: 0.87, to: 1.15, color: [255, 230, 90], alpha: 0.25 }, THREAT: { from: 1.15, color: [255, 40, 40], alphaAt: [[1.15, 0.25], [2.0, 0.6], [3.0, 0.8]], outlineUnits: [[1.15, 2], [2.0, 3]], outlineColor: 'rgba(90,0,0,0.95)' } },      // role tint of the creatures by size relative to the player (hazards keep their orange pulse)
-    FLOOR_OBSTACLES: { bottomY: 990, tol: 2 },                                         // every obstacle that stands on the seabed has its bottom edge at y = 990 +/- 2
+    FLOOR_OBSTACLES: { bottomY: 990, tol: 2 },
+    DECOR_ROCKS: { sink: 0.25 },                                                       // plain rocks are decoration: the bottom 25 % of the sprite lies below the floor line (the floor strip is drawn in front of them)                                         // every obstacle that stands on the seabed has its bottom edge at y = 990 +/- 2
     ZOOM: 1.25,                // CR-4 (R-OE-49): constant arena zoom (tunable 1.2 .. 1.3); the visible world is the 1920 x 1080 view / ZOOM
     CAM_Y: { dead: 100, lerp: 0.12, topMax: 216, centre: 432, lookUpWithin: 200 },
     maxSpeedBL: 3.0,          // player max speed, body lengths per second

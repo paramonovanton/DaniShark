@@ -26,7 +26,8 @@
     // CR-4 (R-OE-49): viewW = the logical width of the stage; the arena shows viewW / ZOOM world units (k = canvas px per world unit already contains the zoom)
     var logicW = viewW || BAL.DESIGN_W;
     this.viewW = logicW / BAL.ZOOM;
-    this.cv.width = Math.round(cssW * dpr); this.cv.height = Math.round(cssW * BAL.VIEW_H / logicW * dpr); this.k = this.cv.width / this.viewW;
+    var pw = Math.round(cssW * dpr); if ((OE.Browser && OE.Browser.tier) !== 'desktop') pw = Math.min(pw, 1280);          // mobile tier: the arena canvas never exceeds 1280 px wide (3.7 MB); CSS scales it to the screen (memory budget)
+    this.cv.width = pw; this.cv.height = Math.round(pw * BAL.VIEW_H / logicW); this.k = this.cv.width / this.viewW;
   };
   P.addPart = function (o) { this.parts.push(o); if (this.parts.length > 500) this.parts.shift(); };
   P.burst = function (x, y, n, color, speed, life, r) {
@@ -229,7 +230,8 @@
     switch (ob.kind) {
       case 'rock': case 'brock':
         img = this.sp(ob.kind === 'brock' ? 'OBS_Rock_Cracked' : (ob.id % 2 ? 'OBS_Rock_v1' : 'OBS_Rock_v2'), ROCK_TINT[n] || '#c8c8d0'); if (!img) return false;
-        if (ob.kind === 'rock') this.mound(ctx, ob.x, r * 2.3, wd); this.spr(ctx, img, ob.x, ob.kind === 'rock' ? BAL.FLOOR_OBSTACLES.bottomY : ob.y + r * 0.9, r * 2.3, 'b'); return true;
+        if (ob.kind === 'rock') { var rh = r * 2.3 * img.height / img.width; this.spr(ctx, img, ob.x, BAL.FLOOR_OBSTACLES.bottomY + BAL.DECOR_ROCKS.sink * rh, r * 2.3, 'b'); return true; }          // decor: 25 % sunk into the seabed, no mound
+        this.spr(ctx, img, ob.x, ob.y + r * 0.9, r * 2.3, 'b'); return true;
       case 'coral': img = this.sp(ob.id % 2 ? 'OBS_Coral_v1' : 'OBS_Coral_v2'); if (!img) return false; this.mound(ctx, ob.x, r * 2.4, wd); this.spr(ctx, img, ob.x, BAL.FLOOR_OBSTACLES.bottomY, r * 2.4, 'b'); return true;
       case 'anemone': img = this.sp('OBS_Anemone'); if (!img) return false; this.mound(ctx, ob.x, 120, wd); this.spr(ctx, img, ob.x, BAL.FLOOR_OBSTACLES.bottomY, 120, 'b', Math.sin(t * 2 + ob.id) * 0.07); return true;
       case 'crevice': img = this.sp('OBS_Crevice', ROCK_TINT[n] || '#c8c8d0'); if (!img) return false; this.spr(ctx, img, ob.x, ob.y, 150, 'c'); return true;
@@ -248,8 +250,8 @@
     ctx.restore(); return true;
   };
   // seabed strip (SEA_Wn_Floor, tiles along x at parallax 1.0, 150 world units high, top contour at y = 980) and midground strip (MID_Wn, parallax 0.66, bottom at 1080)
-  P.drawSeabedArt = function (ctx, wd) {
-    var n = wd.n, VW = this.viewW, cam = this.cam, mid = this.sp('MID_W' + n), fl = this.sp('SEA_W' + n + '_Floor'), mh = { 1: 260, 2: 330, 3: 300, 5: 560, 6: 300, 7: 360 }[n] || 300, any = false, x, w, h, off;
+  P.drawSeabedArt = function (ctx, wd, mode) {
+    var n = wd.n, VW = this.viewW, cam = this.cam, mid = this.sp('MID_W' + n), fl = mode === 'mid' ? null : this.sp('SEA_W' + n + '_Floor'), mh = { 1: 260, 2: 330, 3: 300, 5: 560, 6: 300, 7: 360 }[n] || 300, any = false, x, w, h, off;
     if (mid) {
       h = mh; w = mid.width * h / mid.height; off = wrap(cam * 0.66, w); ctx.save(); ctx.globalAlpha = 0.88;
       for (x = -off; x < VW; x += w) ctx.drawImage(mid, x, 1080 - h, w, h);
@@ -266,6 +268,17 @@
   P.mound = function (ctx, x, w, wd) {
     var col = (wd && wd.floor) || (this.wdn && OE.WORLDS[this.wdn - 1].floor) || '#8a7a5a', y = BAL.FLOOR_OBSTACLES.bottomY;
     ctx.save(); ctx.fillStyle = col; ctx.globalAlpha = 0.92; ctx.beginPath(); ctx.ellipse(x, y + 4, w * 0.5, 15, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(x, y + 8, w * 0.46, 9, 0, 0, TAU); ctx.fill(); ctx.restore();
+  };
+  P.drawDecorRocks = function (ctx, sim) {
+    var i, ob, cam = this.cam, VW = this.viewW, wd = sim.wdef;
+    for (i = 0; i < sim.obs.length; i++) { ob = sim.obs[i]; if (ob.kind !== 'rock' || ob.x + ob.r * 1.5 < cam || ob.x - ob.r * 1.5 > cam + VW) continue; this.drawRock(ctx, ob, wd); }
+  };
+  // the floor strip in world coordinates (tile origin x = 0), drawn after the decor rocks
+  P.drawFloorWorld = function (ctx, wd, cam) {
+    var fl = this.sp('SEA_W' + wd.n + '_Floor'), w, h = 150, x;
+    if (!fl) return;
+    w = fl.width * h / fl.height;
+    for (x = Math.floor(cam / w) * w; x < cam + this.viewW + w; x += w) ctx.drawImage(fl, x, 968, w, h);
   };
   P.drawRock = function (ctx, ob, wd) {
     if (this.drawObsArt(ctx, ob.kind === 'cracked' ? { x: ob.x, y: ob.y, r: ob.r, id: ob.id, kind: 'brock' } : ob, wd)) return;
@@ -289,7 +302,8 @@
     for (i = 0; i < sim.obs.length; i++) {
       ob = sim.obs[i];
       if (!!ob.fore !== fore) continue;
-      if (ob.kind !== 'rock' && ob.kind !== 'brock' ? this.drawObsArt(ctx, ob, wd) : false) continue;       // CR-4: sprite art when loaded
+      if (ob.kind === 'rock') continue;                                                          // decor rocks are drawn by drawDecorRocks (before the floor strip)
+      if (ob.kind !== 'brock' ? this.drawObsArt(ctx, ob, wd) : false) continue;       // CR-4: sprite art when loaded
       switch (ob.kind) {
         case 'coral': this.drawCoral(ctx, ob); break;
         case 'rock': case 'brock': this.drawRock(ctx, ob, wd); break;
@@ -649,9 +663,10 @@
     this.cam = cam;
     this.glowLine = sim.jumpEligible() ? 1 : 0;
     var bg = OE.Assets.get('BG_W' + wd.n + '_Back');
-    if (bg) { this.drawFarBg(ctx, bg, cam, sim.deep); this.drawSeabedArt(ctx, wd); if (!sim.deep) this.drawWaterLine(ctx, sim); }
+    if (bg) { this.drawFarBg(ctx, bg, cam, sim.deep); this.drawSeabedArt(ctx, wd, 'mid'); if (!sim.deep) this.drawWaterLine(ctx, sim); }
     else { if (!sim.deep) this.drawSky(ctx, wd, sim); this.drawWater(ctx, wd, sim); }
     ctx.save(); ctx.translate(-cam, 0);                        // world space from here
+    if (bg) { this.drawDecorRocks(ctx, sim); this.drawFloorWorld(ctx, wd, cam); }          // the decor rocks, then the floor strip in front of them: they stand sunk in the sand
     this.drawZonesBack(ctx, sim);
     this.drawObstacles(ctx, sim, false);
     this.drawPickups(ctx, sim);

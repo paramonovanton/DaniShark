@@ -24,7 +24,7 @@
     var np0 = 0, nh0 = 0, scriptedLevel = this.level === 5 && !!BAL.BOSSES.LIST[this.world] && ld.boss !== 'bloop';
     for (i = 0; i < pr.length && !scriptedLevel; i++) { if (np0 >= this.diff.maxpred) break; this.spawnSpecial(pr[i][0], Math.min(pr[i][1], this.diff.maxpred - np0)); np0 += Math.min(pr[i][1], this.diff.maxpred - np0); }
     for (i = 0; i < hz.length && nh0 < this.diff.haztypes; i++) { this.spawnSpecial(hz[i][0], 1); nh0++; }
-    if (hz.length && scriptedLevel) for (i = 0, k = clamp(Math.ceil(this.foodTarget() * 0.7), 6, 16); nh0 < k; i++, nh0++) this.spawnSpecial(hz[i % hz.length][0], 1);      // boss levels: the normal stream is held while waves run, so the level starts with 6..16 hazards (about 70 % of the prey target) (share of the live threats)
+    if (hz.length && scriptedLevel) for (i = 0, k = clamp(Math.ceil(this.foodTarget() * 0.9), 8, 18); nh0 < k; i++, nh0++) this.spawnSpecial(hz[i % hz.length][0], 1);      // boss levels: the normal stream is held while waves run, so the level starts with 6..16 hazards (about 70 % of the prey target) (share of the live threats)
     var pas = ld.pas || [];
     for (i = 0; i < pas.length; i++) this.pasT[i] = pas[i][1];
     var per = ld.per || [];
@@ -122,6 +122,7 @@
     return false;
   };
   P.spawnSpecial = function (id, count, boost) {
+    if (this.t > 1 && this.bossBusy && this.bossBusy()) return;                      // boss priority
     var def = CR[id], sz = boost ? Math.max(this.rosterSize(id, CR[id]), boost * this.S) : undefined, i, pos, yr = [this.bands.mid[0], this.bands.deep[1]], gr = null, self = this;
     for (i = 0; i < count; i++) {
       pos = this.randomFar(BAL.spawnFar, yr);
@@ -154,7 +155,7 @@
     if (!this.side) bx = clamp(bx, 90, W - 90);
     switch (kind) {
       case 'coral': r = rng.range(60, 90); this.obs.push({ id: this.nextId++, kind: 'coral', shape: 'c', x: bx, y: FLOOR - r * 0.4, r: r, solid: true, fore: true }); break;
-      case 'rock': r = rng.range(40, 70); this.obs.push({ id: this.nextId++, kind: 'rock', shape: 'c', x: clamp(bx + 90, 90, W - 90), y: FLOOR - r * 0.45, r: r, solid: true }); break;
+      case 'rock': r = rng.range(40, 70); this.obs.push({ id: this.nextId++, kind: 'rock', shape: 'c', x: clamp(bx + 90, 90, W - 90), y: FLOOR - r * 0.45, r: r, solid: false, decor: true });          // a plain rock is decoration only (user playtest): no collision, no bump, not in the fairness break;
       case 'anemone': this.obs.push({ id: this.nextId++, kind: 'anemone', shape: 'c', x: clamp(bx + 40, 60, W - 60), y: FLOOR - 20, r: 36, haz: true, name: 'Sea anemone' }); break;
       case 'crevice': this.obs.push({ id: this.nextId++, kind: 'crevice', shape: 'c', x: clamp(bx - 70, 80, W - 80), y: FLOOR - rng.range(30, 160), r: 30 }); break;
       case 'brock': this.obs.push({ id: this.nextId++, kind: 'brock', shape: 'c', x: clamp(bx + 50, 90, W - 90), y: FLOOR - rng.range(60, 140), r: 48, solid: true, breakable: 24, coins: rng.int(3, 5) }); break;
@@ -417,7 +418,7 @@
         for (qq = 0; qq < this.creatures.length; qq++) { var tc = this.creatures[qq]; if (tc.dead || tc.faded || tc.def.k === 'pas' || tc.role === 'passive') continue;
           if (tc.persist && tc.role !== 'predator' && tc.role !== 'hazard' && Math.abs(tc.x - this.player.x) > this.viewW * 0.6) { tc.dead = true; continue; }          // a threat the player has outgrown and that is out of sight is retired (the next one is sized for the current form)
           liveN++; if (tc.role === 'predator') liveP++; if (tc.role === 'predator' || tc.role === 'hazard') liveT++; }
-        if (!busy && (scripted || this.hazT === undefined || this.hazT < 0.5 * D.haz) && liveT / Math.max(1, liveN) < (scripted ? 0.4 : BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[0]) && liveT < (scripted ? 24 : BAL.GROWTH.CLASSIC_THREAT_MAX)) {      /* the boss levels (the director supplies the predators) top up hazards towards 40 % (the crossers do not stay), the other levels only below 20 % and only in the second half of a stream interval (a top-up brings the next stream event forward, it does not add to the table's events) */ var tid = (scripted || liveP >= D.maxpred) && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true); this.spawnSpecial(tid, 1); this.ev.threat++; if (CR[tid].k === 'haz') this.hazT = D.haz; else this.predT = D.pred;      /* a top-up counts as the stream's event: the events stay on the table */ }
+        if (!busy && (scripted || this.hazT === undefined || this.hazT < 0.75 * D.haz) && liveT / Math.max(1, liveN) < (scripted ? 0.4 : BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[0]) && liveT < (scripted ? 24 : BAL.GROWTH.CLASSIC_THREAT_MAX)) {      /* the boss levels (the director supplies the predators) top up hazards towards 40 % (the crossers do not stay), the other levels only below 20 % and only in the second half of a stream interval (a top-up brings the next stream event forward, it does not add to the table's events) */ var tid = (scripted || liveP >= D.maxpred) && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true); this.spawnSpecial(tid, 1); this.ev.threat++; if (CR[tid].k === 'haz') this.hazT = D.haz; else this.predT = D.pred;      /* a top-up counts as the stream's event: the events stay on the table */ }
         else if (liveT > 1 && liveT / liveN > BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[1]) {      // too many: recycle the farthest threat that is outside the view
           var far = null, fd = 0, px = this.player.x;
           for (qq = 0; qq < this.creatures.length; qq++) { var fc = this.creatures[qq]; if (!fc.dead && !fc.faded && (fc.role === 'predator' || fc.role === 'hazard') && fc.def.k !== 'pas' && Math.abs(fc.x - px) > this.viewW * 0.6 && Math.abs(fc.x - px) > fd) { far = fc; fd = Math.abs(fc.x - px); } }

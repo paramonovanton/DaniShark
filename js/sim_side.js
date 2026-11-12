@@ -133,7 +133,7 @@
     return this.lanes[lane];
   };
   P.closingOf = function (v) { return Math.min(SD.maxClosing, v + this.fwdBase()); };
-  P.aheadX = function (closing) { return this.viewRight() + Math.max(SD.spawnAhead + 1.2 * this.fwd, closing * SD.telegraphS); };       // CR-4 round 9: >= 240 units beyond the edge even a good 0.8 s later (the view moves on at the forward speed)
+  P.aheadX = function (closing, prey) { return this.viewRight() + Math.max(SD.spawnAhead + (prey ? 1.2 * this.fwd : 0), closing * SD.telegraphS); };       // prey / school members (no marker): >= 240 beyond the edge even a good second later; threats keep a marker lead of about 1 s (closing x 1 s)       // CR-4 round 9: >= 240 units beyond the edge even a good 0.8 s later (the view moves on at the forward speed)
 
   // build the linear segments of a pattern; a segment {t, vx, vy} starts at creature time t
   P.initMover = function (c, pat, v, sm) {
@@ -217,7 +217,7 @@
     var v = sm.v ? rng.range(sm.v[0], sm.v[1]) * this.diff.speed : 0;
     v = Math.min(v, SD.maxClosing - this.fwdBase());
     var closing = pat === 'STATIC' ? this.fwdBase() : this.closingOf(v);
-    var x = o.x !== undefined ? o.x : this.aheadX(closing) + this.visLen(o.size || def.size, def) * 0.5;   // the whole body starts outside the view, so it enters about 1 s later
+    var x = o.x !== undefined ? o.x : this.aheadX(closing, def.k !== 'pred' && def.k !== 'haz') + this.visLen(o.size || def.size, def) * 0.5;   // the whole body starts outside the view, so it enters about 1 s later
     var y = o.y !== undefined ? o.y : this.laneY(def, pat);
     var yMin = this.waterY + 60, yMax = FLOOR - 60;
     if (pat !== 'FLOOR' && pat !== 'STATIC' && o.y === undefined) y = clamp(y, yMin, yMax);
@@ -429,7 +429,7 @@
     if (!h) return need;
     feasible = FLOOR - (this.waterY + 20) - h;
     if (need <= feasible - 8) return need;
-    raw = Math.max(0, SD.corridor + 10 - (this.player.r - 0.1 * brMax));
+    raw = Math.max(0, SD.corridor + 10 - 0.5 * (this.player.r - 0.1 * brMax));
     return raw <= feasible ? raw : need;
   };
   P.fairOK = function (fresh) {
@@ -571,6 +571,7 @@
   // spawn a threat species; when the fairness checks fail the new bodies are removed again (the caller retries soon)
   P.spawnThreat = function (id) {
     var def = CR[id], sm = SM[id] || { p: 'STRAIGHT' }, tries, y, n0, fresh, strict = (this.fairFails || 0) < 12;
+    if (this.bossBusy()) return null;                                                 // boss priority: no normal threat while a boss wave is queued / telegraphed / on its way
     for (tries = 0; tries < 10; tries++) {                                          // 4 lane picks, then free heights (a big body may fit only in a narrow band)
       y = def.sband === 'floor' || sm.p === 'FLOOR' || sm.p === 'AMBUSH_DASH' || sm.p === 'STATIC' ? FLOOR : (tries < 4 ? this.laneY(def, sm.p) : this.rng.range(this.waterY + 80, FLOOR - 80));
       n0 = this.creatures.length;
@@ -578,6 +579,7 @@
       this.spawnSide(id, { y: y, size: this.rosterSize(id, def), single: tries >= 3 });          // a pack that does not fit the corridor rule is tried again as one body
       fresh = this.creatures.slice(n0);
       fresh.forEach(function (c) { c.batch = batch; });
+      if (tries >= 6 && sm.p !== 'ZIGZAG') fresh.forEach(function (c) { this.capBr(c, BAL.BOSSES.MAX_BR); }, this);               // a big predator keeps a collider that leaves the corridor (UC-OE-101: the big forms get their grouper again)
       // a big single straight mover (giant squid, leviathan...) leaves a free corridor on one side only when it sits near the top or the bottom of the play band: fit its lane
       if (fresh.length === 1 && fresh[0].br > 90 && sm.p !== 'FLOOR' && sm.p !== 'AMBUSH_DASH' && sm.p !== 'STATIC' && sm.p !== 'BOSS' && (fresh[0].br > 130 || ((sm.p === 'STRAIGHT' || sm.p === 'ONE_TURN') && !(fresh[0].mv && fresh[0].mv.segs && fresh[0].mv.segs.some(function (sg) { return sg.vy; }))))) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, this.needGap(CORR_MARGIN + 30, fresh));
       if (fresh.length && this.fairOK(fresh) && this.fairOver(fresh, null, strict)) { this.fairFails = 0; return fresh[0]; }
@@ -632,7 +634,7 @@
       S.per[i] -= dt;
       if (S.per[i] <= 0) {
         S.per[i] = per[i].every;
-        var def = CR[per[i].id], sm = SM[per[i].id] || { p: 'STRAIGHT', v: [100, 100] }, n = per[i].n, y = this.laneY(def, sm.p), x0 = this.aheadX(200), k, c;
+        var def = CR[per[i].id], sm = SM[per[i].id] || { p: 'STRAIGHT', v: [100, 100] }, n = per[i].n, y = this.laneY(def, sm.p), x0 = this.aheadX(200, true), k, c;
         var v = rng.range(sm.v[0], sm.v[1]) * this.diff.speed;
         var nPer = this.creatures.length, grp = [];
         for (k = 0; k < (def.ai === 'school' ? n : Math.min(n, 3)); k++) {
@@ -682,7 +684,7 @@
       return;
     }
     this.addObstacle(kind, 0, 1, x);
-    if (kind === 'coral' || kind === 'rock') { var o = this.obs[this.obs.length - 1]; if (o) o.solid = false; }   // decoration in this mode: prey stays edible, nothing blocks
+    if (kind === 'coral' || kind === 'rock') { var o = this.obs[this.obs.length - 1]; if (o) { o.solid = false; if (kind === 'rock') o.decor = true; } }   // decoration in this mode: prey stays edible, nothing blocks
     if (kind === 'brock' || kind === 'ruin') { var b = this.obs[this.obs.length - 1]; if (b) b.solid = false; }
   };
   // the 300 px gap of walls, shock walls and columns; it grows a little for the biggest bodies so every form can fit [DEFAULT - tune]
