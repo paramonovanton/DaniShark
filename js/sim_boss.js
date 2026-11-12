@@ -48,7 +48,7 @@
     var c = this.spawnCreature(id, x, y, { size: o.size, cross: true, facing: vx < 0 ? -1 : 1 });
     if (!c) return null;
     this.capBr(c, o.maxBr || BB.MAX_BR);
-    c.scr = { vx: vx, vy: vy }; c.vx = vx; c.vy = vy; c.cross = true; c.cdir = vx < 0 ? -1 : 1; c.cost = 0; c.bossAtk = true; c.persist = false;
+    c.tk = this.waveTimer; c.scr = { vx: vx, vy: vy }; c.vx = vx; c.vy = vy; c.cross = true; c.cdir = vx < 0 ? -1 : 1; c.cost = 0; c.bossAtk = true; c.persist = false;
     if (o.warn) c.warn = o.warn;
     return c;
   };
@@ -96,7 +96,7 @@
     return this.viewRight() + Math.max(BAL.SIDE.spawnAhead, closing * BB.TELEGRAPH_S);
   };
   P.bossTelegraph = function (y, s, kind) {
-    var id = this.nextId++; this.bossTele.push({ id: id, y: y, until: this.t + s, kind: kind || 'lane' }); return id;
+    var id = this.nextId++; this.bossTele.push({ id: id, y: y, until: this.t + s, u0: this.t + s, kind: kind || 'lane' }); return id;
   };
   // run fn after `delay` seconds (the telegraph)
   P.bossAtS = function (delay, fn) { var it = this.bossAt(delay, fn); it.stag = true; return it; };       // a staggered second body: counts as a pending wave for the director timers
@@ -142,12 +142,13 @@
   // the ones inside it that would make the wave unfair are removed after 0.5 s of waiting. A wave is therefore committed within about 1 s; the telegraph is shown for a wave that is going to come.
   P.bossBusy = function () {
     if (!this.bossInfo || !this.bossIsScripted() || this.finale) return false;
-    if (this.bossHoldT > this.t || this.bossQ.length) return true;
+    if (this.bossHoldT > this.t || this.bossQ.length || this.bossTele.length) return true;
     var i, c; for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; if (c.bossAtk && !c.dead && c.role !== 'prey' && c.x > this.player.x - 200) return true; }       // until the body has passed the player
     return false;
   };
   P.bossPurge = function (fromX) {
     var i, c, n = 0;
+    if (!this.side) return 0;                                                  // Classic has no corridor rule: nothing has to make way
     for (i = 0; i < this.creatures.length; i++) {
       c = this.creatures[i];
       if (c.dead || c.bossAtk || c.boss || c.finaleBoss || c.def.k === 'pas' || (c.role !== 'predator' && c.role !== 'hazard') || c.x <= fromX) continue;
@@ -175,26 +176,28 @@
   // build(variant) makes the bodies of the wave (it may add its own telegraph through bossTelegraph); nVar = how many shapes the wave can take (a flatter angle, a single body... the first
   // one that is fair for the current size of the player is committed); teleId = a telegraph made BEFORE the wave (kept until the wave is committed, removed when it never comes)
   P.bossWave = function (build, delay, teleId, nVar) {
-    var self = this, st = this.bossStats, seq = ++this.bossSeq, T = BB.COMMON.WAVE_TIMING, due = this.t + (delay || 0), nv = nVar || 1;
+    var self = this, st = this.bossStats, seq = ++this.bossSeq, T = BB.COMMON.WAVE_TIMING, due = this.t + (delay || 0), nv = nVar || 1, tk = this.curTimer;
     st.waves++;
     this.bossHoldT = Math.max(this.bossHoldT, this.t + (delay || 0) + 1.0);
     this.bossPurge(this.viewRight() - 100);
     if (teleId) this.bossTeleHold(teleId, 1e9);
-    function commit(item, late) {
+    function commit(item, late, fresh) {
+      var i, q;
       st.committed++; st.maxWait = Math.max(st.maxWait, late);
-      if (teleId) self.bossTeleHold(teleId, self.t + 0.1);
-      self.bossHoldT = Math.max(self.bossHoldT, self.t + 0.5);
+      if (teleId) for (i = 0; i < self.bossTele.length; i++) { q = self.bossTele[i]; if (q.id === teleId) { q.until = Math.max(self.t + 0.1, q.u0 || 0); if (fresh && fresh.length === 1) q.y = fresh[0].y; } }       // the lane it really takes
+      self.bossHoldT = Math.max(self.bossHoldT, self.t + 1.5);
       return true;
     }
     var qi = this.bossAt(delay, function (item) {
       // spec v5.3 (BB.COMMON.WAVE_TIMING): forms 1-6 never drop a wave and delay it <= 2 s; forms 7-8 may drop up to 15 % and delay <= 4 s
+      self.waveTimer = tk;
       var v, n0 = self.creatures.length, t0 = self.bossTele.length, fresh, late = self.t - due, high = self.form >= T.highFromForm, limit = high ? T.maxDelayHigh : T.maxDelayLow, force = late >= limit - 0.3, pass;
       if (!force && self.bossQ.some(function (q) { return q.wave && q.seq < seq && q !== item; })) { item.t = self.t + 0.25; return false; }      // the waves go one after the other (two big bodies never arrive together)
       for (v = 0; v < nv; v++) {
         build.call(self, v); fresh = self.creatures.slice(n0);
         if (!fresh.length) { if (v === nv - 1) { if (teleId) self.bossTeleHold(teleId, 0); return true; } continue; }
         pass = self.bossFair(fresh) || (force && self.fairOK(fresh) && self.fairOver(fresh, null, true));
-        if (pass || (force && v === nv - 1 && !(high && st.dropped < T.dropHighPct * Math.max(1, st.waves)))) return commit(item, late);   // a late wave goes with the best shape it has
+        if (pass || (force && v === nv - 1 && !(high && st.dropped + 1 <= 0.8 * T.dropHighPct * Math.max(8, st.waves)))) return commit(item, late, fresh);   // a late wave goes with the best shape it has
         fresh.forEach(function (c) { c.dead = true; });
         self.creatures.length = n0; self.bossTele.length = Math.min(self.bossTele.length, t0);          // refused: undo (and its own telegraph), try the next shape
       }
@@ -209,9 +212,10 @@
   /* ---- the attack primitives ---- */
   P.atkCross = function (id, speed, band, warn) {
     var b = this.bossInfo, sp = speed * b.spMul, y = this.bossLane(band), self = this;
-    var br = this.bossBr(id); y = this.bossFitY(clamp(y, this.waterY + br + 10, FLOOR - br - 6), br);
-    var tg = warn ? this.bossTelegraph(y, warn) : 0;
-    this.bossWave(function () { var c = self.spawnScr(id, self.bossEdgeX(sp), y, -sp, 0, { warn: 0 }); if (c) c.y = y; return c; }, warn || 0, tg);
+    var br = this.bossBr(id), ys = [], i, bands = [band, 'top', 'low'];
+    for (i = 0; i < bands.length; i++) ys.push(this.bossFitY(clamp(i ? this.bossLane(bands[i]) : y, this.waterY + br + 10, FLOOR - br - 6), br));
+    var tg = warn ? this.bossTelegraph(ys[0], warn) : 0;
+    this.bossWave(function (v) { var c = self.spawnScr(id, self.bossEdgeX(sp), ys[v], -sp, 0, { warn: 0 }); if (c) c.y = ys[v]; return c; }, warn || 0, tg, ys.length);          // the lane of the telegraph first, then the top and the low lane
   };
   P.atkSchool = function (id, n, speed) {
     var y = this.bossLane('any'), self = this, sp = speed * this.bossInfo.spMul;
@@ -256,13 +260,14 @@
     });
   };
   P.atkSub = function (mines, sonar) {
-    var b = this.bossInfo, self = this, sp = 140 * b.spMul, br = this.bossBr('submarine'), y = this.bossFitY(clamp(this.bossLane('mid'), this.waterY + br + 10, FLOOR - br - 6), br), sub = null;
-    var tg = sonar ? this.bossTelegraph(y, 2.0) : 0;
+    var b = this.bossInfo, self = this, sp = 140 * b.spMul, br = this.bossBr('submarine'), sub = null, ys = [], i, bands = ['mid', 'top', 'low'];
+    for (i = 0; i < 3; i++) ys.push(this.bossFitY(clamp(this.bossLane(bands[i]), this.waterY + br + 10, FLOOR - br - 6), br));
+    var y = ys[0], tg = sonar ? this.bossTelegraph(y, 2.0) : 0;
     // the submarine comes through the fairness-checked wave; its sonar ping and its mines follow once it exists (a wave that finds no fair moment is dropped with them)
-    this.bossWave(function () { var c = self.spawnScr('submarine', self.bossEdgeX(sp), y, -sp, 0); if (c) { c.y = y; sub = c; } return c; }, 0, tg);
+    this.bossWave(function (v) { var c = self.spawnScr('submarine', self.bossEdgeX(sp), ys[v], -sp, 0); if (c) { c.y = ys[v]; sub = c; } return c; }, 0, tg, 3);
     function after(delay, fn) { self.bossAfter(function () { return sub; }, delay, fn); }
     if (sonar) after(1.0, function () { self.emit('sonar', { x: sub.x, y: sub.y }); });
-    after(2.0, function () { var i; for (i = 0; i < mines; i++) self.objs.push({ id: self.nextId++, kind: 'mine', x: sub.x - 80 + i * 110, y: sub.y + 40, vy: 200, life: 8, t: 0, arm: 1.0 }); });
+    after(2.0, function () { var i; for (i = 0; i < mines; i++) self.objs.push({ id: self.nextId++, kind: 'mine', x: sub.x - 80 + i * 110, y: sub.y + 40, vy: 200 * b.spMul, life: 8, t: 0, arm: 1.0, boss: true }); });
   };
   P.atkTorpedo = function () {
     var b = this.bossInfo, self = this, y = this.bossLane('any'), spd = 500 * b.spMul;
@@ -289,7 +294,7 @@
     if (!up) { var brd = this.bossBr(id); ySt = this.bossFitY(clamp(ySt, this.waterY + brd + 10, FLOOR - brd - 6), brd); }
     var tg = this.bossTelegraph(ySt, warn), px0 = this.rng.range(300, 700);
     this.bossWave(function (v) {
-      var a = angs[v] * Math.PI / 180, vx = up ? -sp * Math.sin(a) - 80 : -sp, vy = up ? -sp * Math.cos(a) : 0, c = self.spawnScr(id, up ? self.player.x + px0 : self.bossEdgeX(sp), ySt, vx, vy);
+      var a = angs[v] * Math.PI / 180, vx = up ? -sp * Math.sin(a) : -sp, vy = up ? -sp * Math.cos(a) : 0, c = self.spawnScr(id, up ? self.player.x + px0 : self.bossEdgeX(sp), ySt, vx, vy);
       if (c) { c.warn = 0; if (up) c.y = FLOOR - c.br - 6; else c.y = ySt; }
       return c;
     }, warn, tg, up ? angs.length : 1);
@@ -339,8 +344,8 @@
       this.emit('bossPhase', { phase: ph, boss: b.id });
     }
     // a timer that fires while a wave (or the second body of a staggered wave) is still pending waits: the wave count shrinks instead of waves piling up and being refused
-    var self = this, pendF = function () { return self.bossQ.some(function (q) { return q.wave || q.stag; }) || self.creatures.some(function (c) { return c.bossAtk && !c.dead && c.role !== 'prey' && c.x > self.player.x - 100; }); }, pend = pendF();
-    for (k in b.T) { T = b.T[k]; T.t -= dt; if (T.t <= 0) { if (pend) T.t = 0.5; else { T.t = T.every; T.fn(); pend = pendF(); } } }
+    var self = this, kk, pendF = function (key) { return self.bossQ.some(function (q) { return q.wave || q.stag; }) || self.creatures.some(function (c) { return c.bossAtk && !c.dead && c.role !== 'prey' && c.tk !== key && c.x > self.player.x - 100; }); };
+    for (k in b.T) { T = b.T[k]; T.t -= dt; if (T.t <= 0) { if (pendF(k)) T.t = 0.5; else { T.t = T.every; this.curTimer = k; T.fn(); this.curTimer = null; } } }
     // scheduled steps (telegraph delays, fairness retries)
     for (i = 0; i < this.bossQ.length; i++) { item = this.bossQ[i]; if (this.t >= item.t) { if (!item.fn(item)) keep.push(item); } else keep.push(item); }
     this.bossQ = keep;
@@ -412,8 +417,8 @@
   };
   // QA hook: spawn a blocker by name in either mode (wall, shockring, tentacle / column, mine); x = number | 'ahead' | 'onPlayer'
   P.qaSpawnBlocker = function (type, x, y, o) {
-    var p = this.player, SD = BAL.SIDE, vr = this.viewRight(), fwd = this.side ? this.fwdBase() : 0, gh = this.side ? this.gapFor() : 380, obj;
-    function xs(w, vx) { return x === 'onPlayer' ? p.x : (typeof x === 'number' ? x : vr + Math.max(100, 3.2 * (fwd + Math.abs(vx || 0))) + w / 2); }
+    var p = this.player, SD = BAL.SIDE, vr = this.viewRight(), fwd = this.side ? this.fwdBase() : 0, gh = this.side ? this.gapFor() : 380, obj, self = this;
+    function xs(w, vx) { return x === 'onPlayer' ? p.x : (typeof x === 'number' ? x : (self.side ? vr + Math.max(100, 5.5 * (fwd + Math.abs(vx || 0))) + w / 2 : Math.min(BAL.W - 100, vr + Math.max(100, 4 * self.pmax())))); }
     if (y && typeof y === 'object' && o === undefined) { o = y; y = undefined; }
     if (type === 'tentacle') type = 'column';
     if (type === 'shockwall' || type === 'shock') type = 'shockring';

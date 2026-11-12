@@ -133,7 +133,7 @@
     return this.lanes[lane];
   };
   P.closingOf = function (v) { return Math.min(SD.maxClosing, v + this.fwdBase()); };
-  P.aheadX = function (closing) { return this.viewRight() + Math.max(SD.spawnAhead, closing * SD.telegraphS); };
+  P.aheadX = function (closing) { return this.viewRight() + Math.max(SD.spawnAhead + 0.8 * this.fwd, closing * SD.telegraphS); };       // CR-4 round 9: >= 240 units beyond the edge even a good 0.8 s later (the view moves on at the forward speed)
 
   // build the linear segments of a pattern; a segment {t, vx, vy} starts at creature time t
   P.initMover = function (c, pat, v, sm) {

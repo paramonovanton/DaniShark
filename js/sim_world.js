@@ -124,6 +124,7 @@
     var def = CR[id], sz = boost ? Math.max(this.rosterSize(id, CR[id]), boost * this.S) : undefined, i, pos, yr = [this.bands.mid[0], this.bands.deep[1]], gr = null, self = this;
     for (i = 0; i < count; i++) {
       pos = this.randomFar(BAL.spawnFar, yr);
+      pos[0] = clamp(pos[0], this.cam.x + this.viewW / 2 - (BAL.despawnX - 400), this.cam.x + this.viewW / 2 + (BAL.despawnX - 400));          // CR-4 round 9: never so far that the distance rule removes it again at once
       if (def.ai === 'ambush') { var h = this.homeSpot(); pos = [h.x, h.y]; }
       else if (def.ai === 'rush') {
         var vent = null, j; for (j = 0; j < this.zones.length; j++) if (this.zones[j].kind === 'vent' && Math.abs(this.zones[j].x - this.player.x) > BAL.spawnFar) vent = this.zones[j];
@@ -398,11 +399,11 @@
       for (qq = 0; qq < this.respawn.length; qq++) { if (CR[this.respawn[qq].type].k === 'pred') np++; }                           // a predator waiting to come back counts
       tcnt = Object.keys(hz).length;
       if ((ld.pred || []).length && !scripted) {
-        this.predT = (this.predT === undefined ? D.pred * 0.5 : this.predT) - dt;
+        this.predT = (this.predT === undefined ? D.pred : this.predT) - dt;
         if (this.predT <= 0) { if (busy) this.predT = 0.4; else if (np >= D.maxpred && !this.retireFar('predator')) this.predT = 1; else { this.spawnSpecial(this.rng.wpick(ld.pred), 1); this.ev.threat++; this.predT = D.pred; } }      // at the cap the farthest predator outside the view is retired for the new one
       }
       if ((ld.haz || []).length) {
-        this.hazT = (this.hazT === undefined ? D.haz * 0.6 : this.hazT) - dt;
+        this.hazT = (this.hazT === undefined ? D.haz : this.hazT) - dt;
         if (this.hazT <= 0) {
           var hid = this.rng.wpick(ld.haz);
           if (busy) this.hazT = 0.4; else if ((tcnt >= D.haztypes && !hz[hid]) || (nh >= Math.min(BAL.GROWTH.CLASSIC_THREAT_MAX, D.haztypes * 2) && !this.retireFar('hazard'))) this.hazT = 1; else { this.spawnSpecial(hid, 1); this.ev.threat++; this.hazT = D.haz; }
@@ -415,7 +416,7 @@
         for (qq = 0; qq < this.creatures.length; qq++) { var tc = this.creatures[qq]; if (tc.dead || tc.faded || tc.def.k === 'pas' || tc.role === 'passive') continue;
           if (tc.persist && tc.role !== 'predator' && tc.role !== 'hazard' && Math.abs(tc.x - this.player.x) > this.viewW * 0.6) { tc.dead = true; continue; }          // a threat the player has outgrown and that is out of sight is retired (the next one is sized for the current form)
           liveN++; if (tc.role === 'predator') liveP++; if (tc.role === 'predator' || tc.role === 'hazard') liveT++; }
-        if (!busy && liveT / Math.max(1, liveN) < BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[0] && liveT < BAL.GROWTH.CLASSIC_THREAT_MAX) { this.spawnSpecial(liveP >= D.maxpred && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true), 1); this.ev.threat++; }
+        if (!busy && liveT / Math.max(1, liveN) < (this.bossInfo ? 0.4 : BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[0]) && liveT < (this.bossInfo ? 24 : BAL.GROWTH.CLASSIC_THREAT_MAX)) {      /* the boss levels (the director supplies the predators) top up hazards towards 40 % (the crossers do not stay), the other levels only below the 20 % sanity edge */ this.spawnSpecial(liveP >= D.maxpred && (this.ldef.haz || []).length ? this.rng.wpick(this.ldef.haz) : this.pickThreat(true), 1); this.ev.threat++; }
         else if (liveT > 1 && liveT / liveN > BAL.GROWTH.CLASSIC_THREAT_BAND_SANITY[1]) {      // too many: recycle the farthest threat that is outside the view
           var far = null, fd = 0, px = this.player.x;
           for (qq = 0; qq < this.creatures.length; qq++) { var fc = this.creatures[qq]; if (!fc.dead && !fc.faded && (fc.role === 'predator' || fc.role === 'hazard') && fc.def.k !== 'pas' && Math.abs(fc.x - px) > this.viewW * 0.6 && Math.abs(fc.x - px) > fd) { far = fc; fd = Math.abs(fc.x - px); } }

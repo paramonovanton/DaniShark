@@ -222,7 +222,7 @@
       // far from the camera: removed (persistent species come back later, outside the view)
       if (!c.dead && c.def.ai !== 'boss' && c.def.ai !== 'serpent' && Math.abs(c.x - (this.cam.x + this.viewW / 2)) > BAL.despawnX) {      // (the leviathan parks itself at x = -9999 between its sweeps)
         c.dead = true;
-        if (c.persist) this.respawn.push({ type: c.type, group: c.group ? c.group.id : 0, t: this.t + 3 });
+        if (c.persist && c.role !== 'predator' && c.role !== 'hazard') this.respawn.push({ type: c.type, group: c.group ? c.group.id : 0, t: this.t + 3 });
       }
     }
     var alive = [];
@@ -496,7 +496,7 @@
       this.objs.push({ kind: 'sonar', x: c.x, y: c.y, r: 20, t: 0, life: 1.4 });
       this.emit('sonar', { x: c.x, y: c.y });
       var mines = 0; for (var i = 0; i < this.objs.length; i++) if (this.objs[i].kind === 'mine') mines++;
-      if (mines < 5) this.objs.push({ id: this.nextId++, kind: 'mine', x: c.x, y: c.y + c.len * 0.2, vy: 55, life: 16, t: 0, arm: 1.0 });
+      if (mines < 5) this.objs.push({ id: this.nextId++, kind: 'mine', x: c.x, y: c.y + c.len * 0.2, vy: this.bossInfo ? 200 * this.bossInfo.spMul : 55, life: 16, t: 0, arm: 1.0, boss: !!this.bossInfo });
     }
   };
   P.ai_eel = function (c, dt) {       // electric eel: shock ring every 4 s (telegraph 0.8 s)
