@@ -39,6 +39,7 @@
     OBS_HAZ: { kinds: ['coral', 'anemone'], boxW: 0.8, boxH: 0.85, playerR: 0.9, names: { coral: 'Fire coral', anemone: 'Sea anemone' }, minGapX: 600, maxH: 180 },      // spec v5.5 CORAL: MIN_GAP_X 600 between stinging floor obstacles, drawn height <= MAX_H
     // PT2-2: one danger look for every damaging obstacle and hazard creature = spec v5.5 DANGER_FX (RIM_COLORS #FF3B30 / #FF9F1A, RIM_UNITS 3, PULSE_HZ 1.5, RIM_ALPHA 0.55..1):
     // a rim pulsing between the two colours + a soft glow (one pre-rendered 64 px radial sprite, scaled), no canvas / CSS filters and no shadowBlur
+    DMG_VIGNETTE: { durS: 0.35, rgb: '255,30,30', edgeA: 0.85, innerK: 0.7, spritePx: 64 },          // BUG-U8: the iOS / lite damage flash drawn on the canvas (same look and timing as css .fx-vignette.flash)
     DANGER: { hz: 1.5, rgbA: [255, 59, 48], rgbB: [255, 159, 26], rimW: 3, rimA: [0.55, 1.0], glowA: [0.2, 0.45], glowPad: 1.3 },
     // PT2-2: background scenery (far background + midground strips) is pushed back behind the play layer: a dark water-coloured veil over the lower band, rising from fromY
     DECOR_BG: { fromY: 430, fullY: 700, alpha: 0.62, midAlpha: 0.9, floorAlpha: 0.22 },

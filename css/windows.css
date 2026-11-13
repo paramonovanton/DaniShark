@@ -124,6 +124,7 @@ html.tier-ios .stage .unavail, html.tier-lite .stage .unavail { filter: none; op
 html.tier-ios .stage .card.pulse > [data-layer="Frame"] { animation: none; }
 html.tier-ios .stage .win-start.final [data-layer="Banner Plate"], html.tier-lite .stage .win-start.final [data-layer="Banner Plate"] { filter: none; }
 html.tier-ios .fx-glow, html.tier-lite .fx-glow { display: none; }
+html.tier-ios .fx-vignette, html.tier-lite .fx-vignette { display: none !important; }          /* BUG-U8: the damage flash is drawn on the arena canvas there (Render.drawDmgVignette): no viewport-sized composited layer while it fades */
 html.tier-ios .stage .win-popup.on [data-layer="Window"], html.tier-lite .stage .win-popup.on [data-layer="Window"] { animation: none; }          /* the pop-in would hold a window-sized layer while it runs */
 html.tier-ios .stage *, html.tier-lite .stage * { will-change: auto !important; }
 html.tier-ios #stage, html.tier-lite #stage, html.tier-ios .stage [style*="box-shadow"], html.tier-lite .stage [style*="box-shadow"] { box-shadow: none !important; }

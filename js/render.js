@@ -137,6 +137,23 @@
     if (!f || f.t >= FL.endS) return;
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = this.evoFlashAlpha(); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, this.cv.width, this.cv.height); ctx.restore();
   };
+  /* BUG-U8 (iOS memory): on the iOS and lite tiers the red damage flash is drawn here on the arena canvas instead of the full-screen DOM vignette
+     (its opacity animation made WebKit composite a viewport-sized layer, ~+11 MB at dpr 3 while it ran). Same look and timing as css .fx-vignette.flash:
+     red edges, opacity 1 -> 0 ease-out over BAL.DMG_VIGNETTE.durS from the hit. The gradient is pre-rendered once into a small canvas and stretched. */
+  P.canvasVignette = function () { return !!(OE.Browser && (OE.Browser.ios || OE.Browser.lite)); };
+  P.drawDmgVignette = function (ctx) {
+    var V = BAL.DMG_VIGNETTE, g = this.game, el, u, a, cv;
+    if (!this.canvasVignette() || !(g.damagedT > 0)) return;
+    el = BAL.invuln - g.damagedT; if (el < 0 || el >= V.durS) return;
+    u = el / V.durS; a = (1 - u) * (1 - u);                                                // ease-out fade, like the css keyframes
+    if (!this.vigCv) {
+      cv = document.createElement('canvas'); cv.width = cv.height = V.spritePx;
+      var x = cv.getContext('2d'), h = V.spritePx / 2, gr = x.createRadialGradient(h, h, h * V.innerK, h, h, h);
+      gr.addColorStop(0, 'rgba(' + V.rgb + ',0)'); gr.addColorStop(1, 'rgba(' + V.rgb + ',' + V.edgeA + ')');
+      x.fillStyle = gr; x.fillRect(0, 0, V.spritePx, V.spritePx); this.vigCv = cv;
+    }
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = a; ctx.drawImage(this.vigCv, 0, 0, this.cv.width, this.cv.height); ctx.restore();
+  };
   P.debris = function (e) {
     var cols = { boats: ['#c68a4a', '#fff', '#2f7ed8'], ships: ['#7a4a22', '#f5ecd0', '#c2873a'], aircraft: ['#e8553a', '#dde3ee', '#7a8aa0'], birds: ['#fff', '#d8dee8'], island: ['#e8cf93', '#5fae4a', '#6a4a22'] }[e.debris] || ['#fff'];
     var n = 12 + Math.round((e.w || 100) / 20), i;
@@ -842,6 +859,7 @@
     this.ambient(ctx, sim, dt);
     this.drawDark(ctx, sim);
     this.drawEvoFlash(ctx);
+    this.drawDmgVignette(ctx);
     // global current direction hint (W4/W5)
     if (sim.drift) { ctx.save(); ctx.globalAlpha = 0.25; ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.lineCap = 'round'; for (i = 0; i < 6; i++) { var yy = 420 + i * 100, x0 = wrap(this.t * 160 * sim.driftDir + i * 230, VW + 200) - 100; ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x0 + 70 * sim.driftDir, yy); ctx.stroke(); } ctx.restore(); }
   };
