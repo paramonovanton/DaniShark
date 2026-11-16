@@ -164,6 +164,7 @@
      Crash guard (mobile tiers): a boot marker is written to localStorage before the art loads and cleared after 10 s of stable running (or when the page is
      left normally); a page that starts with the marker still set died while loading or playing, so it starts in lite mode at once (one crash, not three).
      Settings > Lite graphics keeps lite on (localStorage oe_lite_pref) until it is turned off. */
+  var GUARD_CRASHES = 2, GUARD_WINDOW_MS = 300000;                                       // BUG-U9: two deaths within 5 minutes before the crash guard switches to lite
   function detectTier(searchOverride) {
     var s = searchOverride !== undefined ? searchOverride : ((g.location && g.location.search) || ''), nav = g.navigator || {}, ua = nav.userAgent || '', m = /[?&]tier=(desktop|mobile|lite|ios)/.exec(s), tier, i, ls = null;
     var ios = /iPhone|iPad|iPod/.test(ua) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
@@ -174,6 +175,9 @@
     B.ios = !!ios && tier !== 'desktop'; B.guardReloads = 0; B.guardTripped = false; B.bootStale = false; B.litePref = false;
     var guardOn = (tier !== 'desktop' && !/[?&]qa=1(&|$)/.test(s)) || /[?&]guard=1(&|$)/.test(s);
     B.guardOn = guardOn;
+    // BUG-U9: the guard of the earlier builds sent phones into lite after one reload / app switch inside the 10 s window and kept it for the whole tab
+    // session; the first load of this build forgets that state once (the player's own Lite graphics choice, oe_lite_pref, is kept)
+    try { var lv = g.localStorage; if (lv && lv.getItem('oe_guard_v') !== '2') { lv.removeItem('oe_boot'); lv.removeItem('oe_crashes'); lv.setItem('oe_guard_v', '2'); try { g.sessionStorage.removeItem('oe_lite'); g.sessionStorage.removeItem('oe_loads'); } catch (e8) { /* ignore */ } } } catch (e9) { /* storage blocked */ }
     try {
       var ss = g.sessionStorage, now = Date.now(), arr, kept = [];
       if (/[?&]lite=0(&|$)/.test(s)) { ss.removeItem('oe_lite'); ss.removeItem('oe_loads'); }
@@ -191,7 +195,13 @@
         if (/[?&]lite=0(&|$)/.test(s)) { ls.removeItem('oe_lite_pref'); ls.removeItem('oe_boot'); }
         if (ls.getItem('oe_lite_pref') === '1' && !m) { B.litePref = true; tier = 'lite'; }          // the player's choice (a forced ?tier= wins: tests, emulation)
         if (guardOn) {
-          if (ls.getItem('oe_boot')) { B.bootStale = true; B.guardTripped = true; tier = 'lite'; try { g.sessionStorage.setItem('oe_lite', '1'); } catch (e3) { /* ignore */ } }
+          // BUG-U9: a stale marker means the last page died while loading or playing; lite only after GUARD_CRASHES such deaths within GUARD_WINDOW_MS
+          // (one could be iOS discarding a tab), and only for this load: the next load tries the full art again unless it died again
+          if (ls.getItem('oe_boot')) {
+            var cr = [], nowc = Date.now(); try { cr = JSON.parse(ls.getItem('oe_crashes') || '[]'); } catch (e3) { cr = []; }
+            cr = cr.filter(function (t) { return nowc - t < GUARD_WINDOW_MS; }); cr.push(nowc); ls.setItem('oe_crashes', JSON.stringify(cr));
+            B.bootStale = true; if (cr.length >= GUARD_CRASHES) { B.guardTripped = true; tier = 'lite'; }
+          }
           ls.setItem('oe_boot', String(Date.now()));
         }
       } catch (e4) { /* storage blocked: no marker */ }

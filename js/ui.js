@@ -274,6 +274,8 @@
     this.track.appendChild(card); this.cards.push(card);
   };
   // fill one card from the save: variant (state), texts, preview art, pips
+  // BUG-U9: "Lost Prehistoric World" ran past the card (a fallback font or the iOS zoom makes it wider than the 540 px box): shrink to fit, then an ellipsis
+  P.fitCardName = function (card, n) { this.fitText(one(card, 'World Name'), T('oe_world_name_' + n), { min: BAL.UI_FIT.nameMinPx }); };
   P.fillCard = function (card, n, st, wv) {
     var look = st === 'New' ? 'New' : st;
     var changed = this.variant(card, 'State=' + look);
@@ -284,7 +286,7 @@
     if (ibb) { ibb.setAttribute('aria-label', T('oe_guide_info')); ibb.setAttribute('title', T('oe_guide_info')); ib.setAttribute('data-world', n); }
     var prev = one(card, 'Preview Art'); if (prev) { prev.setAttribute('data-sprite', 'SPR_UI_Img_Main_WorldPreview_' + n); prev.style.backgroundImage = 'var(--spr-SPR_UI_Img_Main_WorldPreview_' + n + ')'; }
     setText(one(card, 'World Num'), T('oe_world_num', n));
-    setText(one(card, 'World Name'), T('oe_world_name_' + n));
+    this.fitCardName(card, n);
     var done = wv.completed ? 5 : wv.levelsCompleted;
     setText(one(card, 'Status Text'), st === 'Locked' ? T('oe_card_locked') : (st === 'Completed' ? T('oe_card_completed') : T('oe_card_level', Math.min(5, done + 1))));
     var pips = one(card, 'Level Pips');
@@ -298,6 +300,7 @@
       c.style.transform = 'translateX(' + offsetOf(d).toFixed(1) + 'px) scale(' + s.toFixed(4) + ')';
       c.style.zIndex = String(100 - Math.round(a * 10));
       c.style.display = a > 3.2 ? 'none' : '';
+      if (a <= 3.2) this.fitCardName(c, i + 1);                                              // BUG-U9: a card that was hidden when it was filled is fitted when it shows
     }
     var best = Math.round(this.pos), j;
     best = U.clamp(best, 0, 6);
@@ -446,7 +449,7 @@
   };
   P.syncLocked = function () {
     var m = this.game.main, W = this.W.locked;
-    setText(one(W, 'Toast/World Name'), T('oe_locked_title', T('oe_world_name_' + m.world)));
+    this.fitText(one(W, 'Toast/World Name'), T('oe_locked_title', T('oe_world_name_' + m.world)), { min: BAL.UI_FIT.nameMinPx });
     setText(one(W, 'Toast/Unlock Hint'), T('oe_locked_hint', T('oe_world_name_' + Math.max(1, m.world - 1))));
     var card = this.cards[m.world - 1];
     if (card && this.shakeFor !== m.timer && m.timer > BAL.lockedToastS - 0.1) { this.shakeFor = m.timer; card.classList.add('shake'); setTimeout(function () { card.classList.remove('shake'); }, 420); }
@@ -456,7 +459,7 @@
     var key = m.world + ':' + JSON.stringify(sv.worlds[m.world].stars) + JSON.stringify(sv.worlds[m.world].bestForm);
     if (this.last.pick === key) return;
     this.last.pick = key;
-    setText(one(W, 'Window/World Name'), T('oe_pick_title', T('oe_world_name_' + m.world)));
+    this.fitText(one(W, 'Window/World Name'), T('oe_pick_title', T('oe_world_name_' + m.world)), { min: BAL.UI_FIT.nameMinPx });
     for (var l = 1; l <= 5; l++) {
       var chip = this.chips[l - 1], st = sv.worlds[m.world].stars[l - 1] || 0;
       this.variant(chip, (l === 5 ? 'State=Final' : 'State=Default') + ', Stars=' + st);
@@ -747,7 +750,7 @@
     if (this.last.start === r) return; this.last.start = r;
     var W = this.W.start, fin = r.level === 5;
     W.classList.toggle('final', fin);
-    setText(one(W, 'World Name'), T('oe_world_num', r.world) + ' - ' + T('oe_world_name_' + r.world));
+    this.fitText(one(W, 'World Name'), T('oe_world_num', r.world) + ' - ' + T('oe_world_name_' + r.world), { min: BAL.UI_FIT.nameMinPx });
     setText(one(W, 'Level Number'), fin ? T('oe_start_final') : T('oe_start_level', r.level));
     setAttr(one(W, 'Level Number'), 'data-state', fin ? 'Final' : 'Default');
     var gi = one(W, 'Goal Form Icon'), gpc = gi && one(gi, 'Form Portrait');

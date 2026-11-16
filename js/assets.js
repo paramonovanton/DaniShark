@@ -36,7 +36,7 @@
     // load the listed ids that exist in the manifest (once); cb(fraction) after each one, cb(1) at the end (also when nothing is left)
     preload: function (ids, cb) {
       var self = this, todo = [], i, id;
-      if (this.tier() === 'lite') { if (cb) cb(1); return 0; }                           // lite mode: procedural art only
+      if (this.tier() === 'lite') ids = ids.filter(function (x) { return /^(CRT|PLY|SRF)_/.test(ALIAS[x] || x); });   // BUG-U9: lite keeps the creature / player / surface art (the small _m files); backgrounds and decor stay procedural
       for (i = 0; i < ids.length; i++) {
         id = ALIAS[ids[i]] || ids[i];
         if (this.keep) this.keep[id] = 1;                                                   // what is asked for after a retain() stays

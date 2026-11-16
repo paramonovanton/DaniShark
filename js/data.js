@@ -9,7 +9,7 @@
   var BAL = {
     DESIGN_W: 1920, DESIGN_H: 1080, VIEW_W_MIN: 1440, VIEW_W_MAX: 2520, VIEW_H: 1080, HUD_NARROW_W: 1920,
     // PT2-1 (BUG-U7): the Wide HUD row needs the full 1920 design width (at 1700..1903 the Level Label / Growth Bar ran over the Creature Chip): below it the Narrow (two-row) layout
-    UI_FIT: { minZoomedPx: 9.0, heightTol: 1.12, hudMinPx: 26 },     // fitText floor under the iOS stage zoom (WebKit blows text below 9 CSS px up to 9: its minimum logical font size), height overflow tolerance (Baloo 2 line box)
+    UI_FIT: { nameMinPx: 28,  minZoomedPx: 9.0, heightTol: 1.12, hudMinPx: 26 },     // fitText floor under the iOS stage zoom (WebKit blows text below 9 CSS px up to 9: its minimum logical font size), height overflow tolerance (Baloo 2 line box)
     W: 3840, H: 1080,                       // world size (sim coordinates)
     waterY: 330, seabedY: 990, floorBand: [990, 1080],
     deepWaterY: 0,           // CR-4: The Abyss has no above-water zone: the 'surface' is the top edge of the view (the top clamp of the player), no sky, no jump band

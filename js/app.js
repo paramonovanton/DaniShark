@@ -67,7 +67,7 @@
 
   // BUG-U2: the page hidden, or the frame / window losing focus (a click on the host page, another tab, the address bar) pauses a running level;
   // the Pause window resumes it with one tap (no tap is eaten: pointer state is reset on every pause)
-  document.addEventListener('visibilitychange', function () { game.setVisibility(document.hidden ? 'hidden' : 'visible'); });
+  document.addEventListener('visibilitychange', function () { game.setVisibility(document.hidden ? 'hidden' : 'visible'); if (document.hidden) Br.bootOk(); });   // BUG-U9: an app switch / tab in the background is not a crash (iOS may discard it later)
   g.addEventListener('blur', function () {
     setTimeout(function () { if (!document.hasFocus || !document.hasFocus()) game.focusLost(); }, 0);   // hasFocus() is false when the whole frame lost focus
   });
