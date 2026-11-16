@@ -569,7 +569,7 @@
     if (L.length > 20) L.shift();
   };
   P.eatCreature = function (c) {
-    var gp = Math.max(1, 3 * c.size / this.S) * (c.def.rich || 1) * (this.side ? 1 : (((BAL.GP_C || {})[this.world] || [])[this.level - 1] || 1));   // Classic only: BAL.GP_C = the per-level pacing factor on the bite GP (round 5)
+    var gp = this.growthGP(Math.max(1, 3 * c.size / this.S) * (c.def.rich || 1) * (this.side ? 1 : (((BAL.GP_C || {})[this.world] || [])[this.level - 1] || 1)));   // Classic only: BAL.GP_C = the per-level pacing factor on the bite GP (round 5)
     c.dead = true;
     this.stats.eaten++; this.stats.firstEat = true; this.player.biteT = 0.15;
     this.emit('eat', { type: c.type, x: c.x, y: c.y, gp: gp, len: c.len, rich: c.def.rich || 1 });

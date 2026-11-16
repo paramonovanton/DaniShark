@@ -279,6 +279,9 @@
   ];
   var ASPECT = { fish: 0.5, shark: 0.34, hammer: 0.34, dolphin: 0.3, whale: 0.34, eel: 0.2, ray: 0.5, squid: 0.5, jelly: 0.9, crab: 0.6, puff: 0.8, turtle: 0.55, angler: 0.6, sub: 0.4, ammonite: 0.9, plesio: 0.4, dunkle: 0.45, mosa: 0.26, bloop: 0.8, sunfish: 0.9, kraken: 0.5 };
 
+  // PT4-2 (BUG-U10): the swim wiggle. sin(t x speedAnim) with a speed-dependent rate jumps to a random phase whenever the speed changes (t is large), so the
+  // sprite's wiggle rotation / squash shook every frame while the fish moved vertically; the caller now integrates the phase (o.ph += dt x rate)
+  function wigOf(o) { return Math.sin(o.ph !== undefined ? o.ph : (o.t || 0) * (o.speedAnim || 6)); }
   function image(ctx, img, L, wig, mouth) {
     var H = L * img.height / img.width;
     ctx.save(); ctx.rotate(wig * 0.05); ctx.scale(1 + wig * 0.01, 1 - Math.abs(wig) * 0.02);
@@ -287,10 +290,10 @@
   }
 
   var Art = {
-    shade: shade,
+    shade: shade, wigOf: wigOf,
     // spec: creature def / player form spec; o: {L, t, mouth(0..1), red, alpha, inflated, retract, state, hazard, snap}
     drawShape: function (ctx, shape, spec, o) {
-      var fn = S[shape] || S.fish, L = o.L, wig = Math.sin((o.t || 0) * (o.speedAnim || 6));
+      var fn = S[shape] || S.fish, L = o.L, wig = wigOf(o);
       var asp = spec.asp || ASPECT[shape] || 0.45;
       fn(ctx, L, asp, spec.c1, spec.c2, wig, o.mouth || 0, spec.d || spec, o);
     },
@@ -302,13 +305,13 @@
     },
     creature: function (ctx, def, o) {
       var img = Art.sprite(def.art, o.mouth);
-      if (img) { image(ctx, img, o.L, Math.sin((o.t || 0) * (o.speedAnim || 6)), o.mouth); return; }
+      if (img) { image(ctx, img, o.L, wigOf(o), o.mouth); return; }
       var spec = { c1: def.c1, c2: def.c2, asp: def.asp, d: def };
       Art.drawShape(ctx, def.shape, def, o);
     },
     player: function (ctx, form, o) {
       var img = Art.sprite('PLY_F' + form, o.mouth);
-      if (img) { image(ctx, img, o.L, Math.sin((o.t || 0) * (o.speedAnim || 6)), o.mouth); return; }
+      if (img) { image(ctx, img, o.L, wigOf(o), o.mouth); return; }
       var sp = PLY[form];
       var spec = { c1: sp.c1, c2: sp.c2, asp: sp.asp, d: sp.d };
       Art.drawShape(ctx, sp.shape, spec, o);

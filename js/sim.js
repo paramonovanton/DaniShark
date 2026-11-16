@@ -133,6 +133,40 @@
     if (f >= 7) id = 'cargo_ship'; else if (f === 6) id = this.rng.chance(0.5) ? 'aircraft_challenge' : 'island_destruction'; else if (f === 5) id = 'pirate_treasure';
     if (id) this.evtPending = { id: id, at: this.t + BAL.GROWTH.EVENT_DELAY_S };
   };
+  /* ---- PT4-2 (BUG-U10): render interpolation between fixed steps. Game calls snapPrev() before every step; the renderer draws with lerpBegin(alpha) and
+     restores the true state with lerpEnd() right after the frame, so the sim (and every test) only ever sees whole steps. A jump of more than LERP_MAX
+     (teleport, respawn, a new body) is drawn as is. ---- */
+  var LERP_MAX = 240;
+  function snapXY(o) { o.px = o.x; o.py = o.y; }
+  P.snapPrev = function () {
+    var p = this.player, i;
+    p.px = p.x; p.py = p.y; p.pa = p.vang === undefined ? p.ang : p.vang; p.pf = p.facing; this.cam.px = this.cam.x; this.cam.py = this.cam.y;
+    for (i = 0; i < this.creatures.length; i++) snapXY(this.creatures[i]);
+    for (i = 0; i < this.surface.length; i++) snapXY(this.surface[i]);
+    if (this.projs) for (i = 0; i < this.projs.length; i++) snapXY(this.projs[i]);
+    this.lerpOk = true;
+  };
+  function lerpXY(o, a, saved) {
+    if (o.px === undefined || Math.abs(o.x - o.px) > LERP_MAX || Math.abs(o.y - o.py) > LERP_MAX) return;
+    saved.push(o, o.x, o.y); o.x = o.px + (o.x - o.px) * a; o.y = o.py + (o.y - o.py) * a;
+  }
+  P.lerpBegin = function (a) {
+    if (!this.lerpOk || !(a < 1)) return null;
+    var p = this.player, saved = [], i, ang = p.vang === undefined ? p.ang : p.vang;
+    lerpXY(p, a, saved); lerpXY(this.cam, a, saved);
+    for (i = 0; i < this.creatures.length; i++) lerpXY(this.creatures[i], a, saved);
+    for (i = 0; i < this.surface.length; i++) lerpXY(this.surface[i], a, saved);
+    if (this.projs) for (i = 0; i < this.projs.length; i++) lerpXY(this.projs[i], a, saved);
+    if (p.pa !== undefined && p.pf === p.facing) { var d = ang - p.pa; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; p.vang = p.pa + d * a; }
+    return { saved: saved, ang: ang };
+  };
+  P.lerpEnd = function (L) {
+    var s = L.saved, i;
+    for (i = 0; i < s.length; i += 3) { s[i].x = s[i + 1]; s[i].y = s[i + 2]; }
+    this.player.vang = L.ang;
+  };
+  // PT4-1 (playtest 4: "speed up progression 30 %"): BAL.GROWTH.GP_MUL scales every growth gain at its source (creature bites, surface targets and bites, event extras); gain() itself stays raw (QA / tests)
+  P.growthGP = function (gp) { return gp * (BAL.GROWTH.GP_MUL || 1); };
   P.gain = function (gp) { this.levelGP = Math.min(BAL.maxGP, this.levelGP + gp); this.refreshForm(false); };
   P.setLevelGP = function (n) {
     this.levelGP = U.clamp(n, 0, BAL.maxGP);
@@ -325,6 +359,7 @@
     var dir = this.side ? 1 : (dirHint ? (dirHint < 0 ? -1 : 1) : p.facing);
     p.airborne = true; this.jumpSerial++;
     p.jump = { t: 0, T: f.flight, A: f.apex, vx: this.side ? this.fwd : dir * f.dist / f.flight, y0: p.y, dir: dir, bounced: false, hit: {} };
+    p.vang = (p.vang === undefined ? p.ang : p.vang); if (dir !== p.facing) p.vang = Math.PI - p.vang;      // PT4-2: the mirrored body keeps its drawn angle
     p.facing = dir; p.stun = 0; p.kbT = 0; p.vx = p.vy = 0; p.kick = null;
     this.stats.jumps++; this.stats.jumpedOnce = true;
     this.emit('jump', { x: p.x, y: this.waterY, form: this.form });
@@ -342,13 +377,19 @@
       if (p.x <= p.r + 0.5 || p.x >= W - p.r - 0.5) j.vx = 0;
     }
     p.vy = (p.y - oldY) / dt; p.vx = j.vx;
-    p.ang = Math.atan2(p.vy, j.vx === 0 ? j.dir : j.vx);
+    p.ang = Math.atan2(p.vy, j.vx === 0 ? j.dir : j.vx);                            // the physical flight angle (mouth, collisions)
     if (j.dir < 0 && j.vx !== 0) p.ang = Math.atan2(p.vy, j.vx);
-    p.facing = j.vx !== 0 ? U.sign(j.vx) : j.dir;
+    var fNew = j.vx !== 0 ? U.sign(j.vx) : j.dir, da;
+    if (p.vang === undefined) p.vang = p.ang; else if (fNew !== p.facing) p.vang = Math.PI - p.vang;
+    da = p.ang - p.vang; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+    p.vang += da * (1 - Math.exp(-dt / BAL.BODY.jumpTiltLag));                     // PT4-2 (BUG-U10): the DRAWN body eases into the flight angle (it snapped by up to 0.8 rad at take-off)
+    p.facing = fNew;
     this.collideSurface();
     if (u >= 1 && j.t >= j.T) {
       p.airborne = false; p.jump = null; p.cooldown = BAL.jumpCooldown;
-      p.y = this.waterY + 0.3 * p.len; p.vx = p.vy = 0; p.ang = p.facing > 0 ? 0 : Math.PI;
+      p.y = this.waterY + 0.3 * p.len; p.vx = p.vy = 0;
+      var la = p.facing > 0 ? p.vang : Math.PI - p.vang; while (la > Math.PI) la -= 2 * Math.PI; while (la < -Math.PI) la += 2 * Math.PI;
+      p.tilt = U.clamp(la, -BAL.BODY.landTiltMax, BAL.BODY.landTiltMax); p.ang = p.vang = p.facing > 0 ? p.tilt : Math.PI - p.tilt;   // PT4-2: the swim tilt carries on from the dive angle (was a snap to level)
       this.emit('land', { x: p.x, y: this.waterY, form: this.form, size: p.len });
     }
   };
@@ -365,7 +406,7 @@
     if (p.cooldown > 0) p.cooldown -= dt;
     if (p.biteT > 0) p.biteT -= dt;
     if (this.dying) {
-      this.dyingT -= dt; p.y += 140 * dt; p.ang = p.facing > 0 ? 0.9 : Math.PI - 0.9;
+      this.dyingT -= dt; p.y += 140 * dt; p.ang = p.vang = p.facing > 0 ? 0.9 : Math.PI - 0.9;
       if (this.dyingT <= 0 && !this.ended) { this.ended = 'fail'; this.halted = true; this.emit('fail', { cause: this.cause }); }
       return;
     }
@@ -401,7 +442,7 @@
     else if (ptr.down && Math.abs(dx) > 30) p.facing = U.sign(dx);
     var tgt = U.clamp(p.vy * 0.0016, -0.45, 0.45);
     p.tilt += (tgt - p.tilt) * (1 - Math.exp(-dt / BAL.CLASSIC_FEEL.tiltLag));      // PT2-6: the tilt lags the motion
-    p.ang = p.facing > 0 ? p.tilt : Math.PI - p.tilt;
+    p.ang = p.vang = p.facing > 0 ? p.tilt : Math.PI - p.tilt;                     // PT4-2: vang = the drawn angle (= ang while swimming)
     var el = this.jumpEligible();
     if (el && !p.wasEligible) this.emit('jumpReady', {});
     p.wasEligible = el;

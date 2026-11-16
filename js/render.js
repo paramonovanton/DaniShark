@@ -544,7 +544,8 @@
     if (c.tilt) ang += c.tilt * 0.45;                                                     // Side-scroller: the nose tilts 0.3 s before a turn
     if (def.shape !== 'jelly' && def.shape !== 'ammonite' && def.shape !== 'crab') ctx.rotate(U.clamp(ang, -0.7, 0.7));
     if (def.shape === 'angler' || def.ai === 'ambush') { if (c.state === 'wait') ctx.globalAlpha = alpha * 0.95; }
-    var copts = { L: c.len, t: c.t + c.id * 0.7, mouth: (c.state === 'lunge' || c.state === 'burst' || c.state === 'rush' || c.state === 'chase') ? 1 : 0, red: near, inflated: c.inflated, retract: c.retract, state: c.state, hazard: role === 'hazard', snap: c.snapT > 0, speedAnim: 3 + sp / 50, ping: 0 };
+    c.wph = (c.wph === undefined ? (c.t + c.id * 0.7) * 3 : c.wph) + this.frameDt * (3 + sp / 50);       // PT4-2: integrated wiggle phase (render-only field)
+    var copts = { L: c.len, t: c.t + c.id * 0.7, ph: c.wph, mouth: (c.state === 'lunge' || c.state === 'burst' || c.state === 'rush' || c.state === 'chase') ? 1 : 0, red: near, inflated: c.inflated, retract: c.retract, state: c.state, hazard: role === 'hazard', snap: c.snapT > 0, speedAnim: 3 + sp / 50, ping: 0 };
     var tint = sim.tintOf(c);
     if (tint.kind !== 'none') this.drawTinted(ctx, def, c, copts, tint); else Art.creature(ctx, def, copts);
     ctx.restore();
@@ -557,13 +558,15 @@
     ctx.globalAlpha = (sim.dying ? Math.max(0.2, sim.dyingT / BAL.failDelayS) : 1) * (blink ? 0.35 : 1);
     ctx.scale(p.facing, 1);
     var pop = this.evoPop(); if (pop !== 1) ctx.scale(pop, pop);                               // PT2-4: scale pop with overshoot
-    var local = p.facing > 0 ? p.ang : Math.PI - p.ang;
+    var va = p.vang === undefined ? p.ang : p.vang, local = p.facing > 0 ? va : Math.PI - va;     // PT4-2: the drawn angle (eased in jumps, interpolated between steps)
     while (local > Math.PI) local -= TAU; while (local < -Math.PI) local += TAU;
     ctx.rotate(U.clamp(local, -1.3, 1.3));
     var sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
     // soft white halo to keep the hero readable
     ctx.beginPath(); ctx.ellipse(0, 0, p.len * 0.55, p.len * 0.3, 0, 0, TAU); ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fill();
-    Art.player(ctx, sim.form, { L: p.len, t: this.t, mouth: p.biteT > 0 ? 1 : 0, speedAnim: 4 + sp / 60, hero: true });
+    this.plPh = (this.plPh || 0) + this.frameDt * (4 + sp / 60);                              // PT4-2: integrated wiggle phase (the rate follows the speed, the phase never jumps)
+    this.plRot = U.clamp(local, -1.3, 1.3); this.plWig = Art.wigOf({ ph: this.plPh });          // QA / tests: the drawn body rotation and wiggle of this frame
+    Art.player(ctx, sim.form, { L: p.len, t: this.t, ph: this.plPh, mouth: p.biteT > 0 ? 1 : 0, speedAnim: 4 + sp / 60, hero: true });
     ctx.restore(); ctx.globalAlpha = 1;
   };
   P.drawSurface = function (ctx, t, sim) {
@@ -757,7 +760,10 @@
     ctx.save();
     var gr = ctx.createRadialGradient(px, p.y, R * 0.55, px, p.y, R);
     gr.addColorStop(0, 'rgba(2,6,22,0)'); gr.addColorStop(1, 'rgba(2,6,22,0.94)');
-    ctx.fillStyle = gr; ctx.fillRect(0, sim.waterY - 6, this.viewW, H);
+    // PT4-3 (BUG-U11): the mask covers the whole view below the waterline. It was (0, waterY - 6, viewW, H = 1080): with The Abyss's waterY 0 it ended at y 1074,
+    // so with the camera down at the floor (view bottom 1080) a 6-unit strip of the lit floor art showed as a bright line across the whole level
+    var top = sim.deep ? this.camY - 40 : sim.waterY - 6, bottom = this.camY + BAL.VIEW_H + 40;
+    ctx.fillStyle = gr; ctx.fillRect(-40, top, this.viewW + 80, bottom - top);
     this.drawBlockers(ctx, sim);                               // CR-4: blockers and hazards glow above the darkness
     ctx.translate(-cam, 0);
     // glowing creatures stay visible
@@ -819,17 +825,25 @@
   };
   P.draw = function (dtMs) {
     var dt = Math.min(0.1, dtMs / 1000), ctx = this.ctx, game = this.game, sim = game.sim;
-    this.t += dt;
+    this.t += dt; this.frameDt = dt;
     // BUG-U3: every frame starts from a clean context (reset() also empties the save() stack), so a frame that threw half way cannot leave a clip,
     // an alpha or a transform behind that blanks or offsets the following frames
     if (ctx.reset) ctx.reset(); else { ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0; ctx.setLineDash([]); }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.cv.width, this.cv.height);
     ctx.setTransform(this.k, 0, 0, this.k, 0, 0);
-    this.camY = sim && game.mode === 'game' ? sim.cam.y : 0; ctx.translate(0, -this.camY);        // CR-4: vertical follow (view top, world units)
-    if (this.shakeT > 0) { this.shakeT -= dt; var sh = this.shake * (this.shakeT / 0.3); ctx.translate((Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh); }
-    if (!sim || game.mode !== 'game') { this.glowLine = 0; this.drawIdle(ctx); return; }
-    var wd = sim.wdef, i, list, cam = sim.cam.x, VW = this.viewW;
+    // PT4-2: the sim runs at a fixed 60 Hz; the frame shows the state between the last two steps (alpha = leftover time / step), so motion and rotation are
+    // smooth on 60 Hz displays with frame-time jitter (0 / 2 steps per frame) and on 120 Hz displays (a step every other frame). Restored after the frame.
+    var lerp = sim && game.mode === 'game' && sim.lerpBegin ? sim.lerpBegin(game.lerpAlpha ? game.lerpAlpha() : 1) : null;
+    try {
+      this.camY = sim && game.mode === 'game' ? sim.cam.y : 0; ctx.translate(0, -this.camY);        // CR-4: vertical follow (view top, world units)
+      if (this.shakeT > 0) { this.shakeT -= dt; var sh = this.shake * (this.shakeT / 0.3); ctx.translate((Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh); }
+      if (!sim || game.mode !== 'game') { this.glowLine = 0; this.drawIdle(ctx); return; }
+      this.drawGame(ctx, sim, dt);
+    } finally { if (lerp) sim.lerpEnd(lerp); }
+  };
+  P.drawGame = function (ctx, sim, dt) {
+    var game = this.game, wd = sim.wdef, i, list, cam = sim.cam.x, VW = this.viewW;
     this.evoTick();
     var ez = this.evoZoom();                                                                   // PT2-4: camera zoom punch, pivot on the player (zoom in only, so the edges stay covered)
     if (ez !== 1) { var zx = sim.player.x - cam, zy = sim.player.y; ctx.translate(zx, zy); ctx.scale(ez, ez); ctx.translate(-zx, -zy); }

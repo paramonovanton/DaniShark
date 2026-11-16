@@ -1,9 +1,10 @@
-/* Ocean Evolution - simple WebAudio: procedural sfx and a soft ambient loop, with sound / music toggles.
+/* Ocean Evolution - simple WebAudio: procedural sfx, a soft ambient loop in a level and the lobby track on the menus, with sound / music toggles.
    Audio unlocks on the first user gesture. No asset files (sound assets are out of scope for this slice). */
 (function (g) {
   'use strict';
   var OE = g.OE = g.OE || {};
 
+  var LOBBY_TRACK = 'assets/audio/mus_lobby.mp3', LOBBY_VOL = 0.5;                  // the lobby music (from Gossip Sort, user request 2026-11-16): menus only, looped, an <audio> element (streams: no decoded buffer in memory)
   var LINE = 'Go, Dani, go!!!';                                                     // the voice line of every evolution (spec UC-OE-113)
   var A = {
     ctx: null, master: null, sfxGain: null, musGain: null, sound: true, music: true, haptics: true, started: false, musicTimer: null, step: 0,
@@ -32,8 +33,25 @@
     applySettings: function () {
       if (!this.ctx || !this.started) return;
       this.sfxGain.gain.value = this.sound ? 1 : 0;
-      if (this.music) this.startMusic(); else this.stopMusic();
+      this.applyMusic();
     },
+    // scene: 'lobby' (loading, World Select, Level Pick, Settings, World Guide) plays the lobby track; 'game' (a level) plays the ambient loop
+    scene: 'lobby', paused: false,
+    setScene: function (s) { if (s === this.scene) return; this.scene = s; this.applyMusic(); },
+    setPaused: function (on) { on = !!on; if (on === this.paused) return; this.paused = on; this.applyMusic(); },          // e.g. while an ad plays
+    applyMusic: function () {
+      var hidden = !!(g.document && g.document.hidden);
+      if (!this.started || !this.music || hidden || this.paused) { this.pauseLobby(); this.stopMusic(); return; }
+      if (this.scene === 'game') { this.pauseLobby(); this.startMusic(); } else { this.stopMusic(); this.playLobby(); }
+    },
+    playLobby: function () {
+      try {
+        if (!this.lobbyEl) { var a = new g.Audio(LOBBY_TRACK); a.loop = true; a.preload = 'auto'; a.volume = LOBBY_VOL; this.lobbyEl = a; }
+        if (this.lobbyEl.paused) { var p = this.lobbyEl.play(); if (p && p.catch) p.catch(function () { /* refused before a gesture: the next unlock / scene change tries again */ }); }
+      } catch (e) { /* no audio element: silent */ }
+    },
+    pauseLobby: function () { if (this.lobbyEl && !this.lobbyEl.paused) { try { this.lobbyEl.pause(); } catch (e) { /* ignore */ } } },
+    lobbyState: function () { return { scene: this.scene, playing: !!(this.lobbyEl && !this.lobbyEl.paused), src: LOBBY_TRACK, ambient: !!this.musicTimer }; },
     tone: function (freq, dur, type, vol, slideTo, delay) {
       if (!this.ctx || !this.sound || !this.started) return;
       var c = this.ctx, t0 = c.currentTime + (delay || 0), o = c.createOscillator(), gn = c.createGain();
@@ -188,5 +206,6 @@
       }
     }
   };
+  try { g.document.addEventListener('visibilitychange', function () { A.applyMusic(); }); } catch (e) { /* no document (tests in a worker) */ }
   OE.Audio = A;
 })(typeof window !== 'undefined' ? window : globalThis);

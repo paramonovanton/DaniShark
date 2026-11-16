@@ -94,6 +94,7 @@
     try {
       if (!manual) game.update(dt);
       ui.sync(dt / 1000);
+      if (OE.Audio && OE.Audio.setScene) OE.Audio.setScene(game.mode === 'game' ? 'game' : 'lobby');   // lobby track on the menus, ambient loop in a level
       render.draw(dt);
       errCount = 0;
     } catch (e) {

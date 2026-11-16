@@ -101,7 +101,7 @@
     if (p.peerT > 0) p.peerT -= dt;
     if (p.shoveT > 0) p.shoveT -= dt;
     if (this.dying) {
-      this.dyingT -= dt; p.y += 140 * dt; p.ang = 0.9;
+      this.dyingT -= dt; p.y += 140 * dt; p.ang = p.vang = 0.9;
       if (this.dyingT <= 0 && !this.ended) { this.ended = 'fail'; this.halted = true; this.emit('fail', { cause: this.cause }); }
       return;
     }
@@ -127,7 +127,7 @@
     this.stats.moved += Math.abs(dy) + this.fwd * dt;
     var tgt = clamp(p.vy * 0.0007, -0.45, 0.5);
     p.tilt += (tgt - p.tilt) * (1 - Math.exp(-dt / SD.tiltLag));                  // PT2-6: the body tilt lags a little behind the motion
-    p.ang = p.tilt;
+    p.ang = p.vang = p.tilt;                                                         // PT4-2: vang = the drawn angle (= ang while swimming)
     var el = this.jumpEligible();
     if (el && !p.wasEligible) this.emit('jumpReady', {});
     p.wasEligible = el;

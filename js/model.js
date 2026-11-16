@@ -122,7 +122,8 @@
   // CR-4 v5.1 (R-OE-14): stars = hearts left when the Kraken is reached (3 / 2 / 1)
   function starsFor(hearts) { return U.clamp(hearts | 0, 1, 3); }
   // target time to the Kraken (spec v5.1): (7 x step time + 15) x level factor
-  function targetDuration(world, level) { return Math.round((7 * GR.STEP_TIME_S_BY_WORLD[world] + 15) * GR.LEVEL_DURATION_FACTOR[level - 1]); }
+  // PT4-1: divided by GR.GP_MUL (growth x 1.3 -> the level is 1/1.3 as long: 185 .. 297 s, average 238 s)
+  function targetDuration(world, level) { return Math.round((7 * GR.STEP_TIME_S_BY_WORLD[world] + 15) * GR.LEVEL_DURATION_FACTOR[level - 1] / (GR.GP_MUL || 1)); }
 
   // Apply a won level (R-OE-19). Pure: returns {save, res}; the caller persists save. run: {world, level, formAtEnd, coinsCollected}
   function applyLevelWin(save, run) {

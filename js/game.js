@@ -545,7 +545,7 @@
         var n = 0;
         while (this.acc >= STEP && n < 12) {
           this.acc -= STEP; n++;
-          if (!s.halted) s.step(STEP);
+          if (!s.halted) { s.snapPrev(); s.step(STEP); }
           this.drainSim();
           if (r.phase !== 'play') break;
         }
@@ -558,6 +558,13 @@
         return;
       default: return;
     }
+  };
+
+  // PT4-2: render interpolation factor between the last two sim steps (1 = draw the current state: paused, halted, not playing)
+  P.lerpAlpha = function () {
+    var s = this.sim, r = this.run;
+    if (!s || !r || r.phase !== 'play' || s.halted || r.krakenT > 0) return 1;
+    return U.clamp(this.acc / STEP, 0, 1);
   };
 
   /* ---------------------------------------------------------------- QA / debug state */

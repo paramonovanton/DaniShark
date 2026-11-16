@@ -657,6 +657,7 @@
     var d = t.def, gp = Math.max(1, d.pct / 100 * BAL.GROWTH.SURFACE_REWARD_BASE_GP), coins = d.coins, extra = 0;       // CR-3: percent of ONE form step (60 GP)
     t.dead = true;
     if (t.ev === 'aircraft_challenge' && this.evt) { this.evt.streak++; extra = Math.max(1, 0.05 * this.evt.streak * BAL.GROWTH.SURFACE_REWARD_BASE_GP); gp += extra; }
+    gp = this.growthGP(gp);                                                 // PT4-1: x BAL.GROWTH.GP_MUL
     if (d.id === 'heli') coins += this.rng.int(10, 30);                    // special reward roll
     this.stats.surfaceEaten++; this.player.biteT = 0.15;
     this.emit('surfaceEat', { id: t.id, type: t.type, x: t.x, y: t.y, gp: gp, coins: coins, w: t.w, h: t.h, debris: d.debris, chest: d.chest, containers: d.containers, ev: t.ev });
@@ -665,7 +666,7 @@
     this.gain(gp);
   };
   P.biteTarget = function (t, m) {
-    var d = t.def, per = d.pct / d.bites, gp = Math.max(1, per / 100 * BAL.GROWTH.SURFACE_REWARD_BASE_GP), coins = Math.round(d.coins / d.bites);
+    var d = t.def, per = d.pct / d.bites, gp = this.growthGP(Math.max(1, per / 100 * BAL.GROWTH.SURFACE_REWARD_BASE_GP)), coins = Math.round(d.coins / d.bites);   // PT4-1: x GP_MUL
     t.biteN++;
     this.stats.surfaceEaten += t.biteN === d.bites ? 1 : 0; this.player.biteT = 0.15;
     var last = t.biteN >= t.bites;
