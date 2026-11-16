@@ -100,11 +100,7 @@
     if (p.biteT > 0) p.biteT -= dt;
     if (p.peerT > 0) p.peerT -= dt;
     if (p.shoveT > 0) p.shoveT -= dt;
-    if (this.dying) {
-      this.dyingT -= dt; p.y += 140 * dt; p.ang = p.vang = 0.9;
-      if (this.dyingT <= 0 && !this.ended) { this.ended = 'fail'; this.halted = true; this.emit('fail', { cause: this.cause }); }
-      return;
-    }
+    if (this.dying) { p.facing = 1; this.updateDying(dt); return; }
     p.facing = 1;
     if (p.airborne) { this.updateJump(dt); p.vx = this.fwd; return; }
     var vOld = p.vy, u, gs;
@@ -476,6 +472,7 @@
   P.isThreat = function (c) {
     if (c.dead || c.def.k === 'pas' || (c.mv && c.mv.pat === 'BOSS')) return false;
     if (isPuff(c)) return true;
+    if (c.def.sp && c.def.sp.shock) return true;                    // PT4 (UC-OE-76): an electric eel is prey-sized between shocks but a hazard while it telegraphs / shocks (every ~4 s, inside one crossing): it always counts
     var r = this.roleOf(c);
     return r === 'predator' || r === 'hazard' || !!(c.mv && c.mv.pat === 'AMBUSH');
   };
@@ -606,7 +603,15 @@
       // a big single straight mover (giant squid, leviathan...) leaves a free corridor on one side only when it sits near the top or the bottom of the play band: fit its lane
       if (fresh.length === 1 && fresh[0].br > 90 && sm.p !== 'FLOOR' && sm.p !== 'AMBUSH_DASH' && sm.p !== 'STATIC' && sm.p !== 'BOSS' && (fresh[0].br > 130 || ((sm.p === 'STRAIGHT' || sm.p === 'ONE_TURN') && !(fresh[0].mv && fresh[0].mv.segs && fresh[0].mv.segs.some(function (sg) { return sg.vy; }))))) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, this.needGap(CORR_MARGIN + 30, fresh));
       this.floorFair = true;                                                            // PT2-2: stinging corals / anemones on the way count as blocks too
-      var fair = fresh.length && this.fairOK(fresh) && this.fairOver(fresh, null, strict);
+      var fair = fresh.length && this.fairOK(fresh) && this.fairOver(fresh, null, true);
+      if (!fair && !strict && fresh.length) {
+        // PT4 (UC-OE-76): after 12 refusals in a row the species used to be let through "lenient" (unfair even alone: a big VERT_BOUNCE jellyfish or a ZIGZAG
+        // body sweeping the column at forms 7-8). Now its sweep is taken away first: the body flies its lane straight (fitted to leave the corridor) and must pass
+        // the strict checks; lenient stays only for a straight body that is unfair on its own
+        fresh.forEach(this.flattenMover, this);
+        if (fresh.length === 1 && fresh[0].br > 60) fresh[0].y = this.bossFitY(fresh[0].y, fresh[0].br, this.needGap(CORR_MARGIN + 30, fresh));
+        fair = this.fairOK(fresh) && (this.fairOver(fresh, null, true) || this.fairOver(fresh, null, false));
+      }
       this.floorFair = false;
       if (fair) { this.fairFails = 0; return fresh[0]; }
       if (!floorOnly && fresh.length && this.floorFairNear()) floorOnly = this.fairOK(fresh) && this.fairOver(fresh, null, strict);      // refused only because of a coral: wait, never go lenient for it
@@ -614,6 +619,11 @@
     }
     if (!floorOnly) this.fairFails = (this.fairFails || 0) + 1;
     return null;
+  };
+  // a mover keeps its lane: no vertical speed, no bounce (PT4 fairness fallback)
+  P.flattenMover = function (c) {
+    var mv = c.mv; if (!mv || !mv.segs || mv.pat === 'AMBUSH' || mv.pat === 'BOSS' || mv.pat === 'STATIC') return;
+    mv.segs.forEach(function (q) { q.vy = 0; }); mv.bounce = false; mv.flat = true; c.vy = 0;
   };
   P.spawnLogicSide = function (dt) {
     var ld = this.ldef, L = this.level - 1, S = this.sT, i, e, rng = this.rng, p = this.player, pick;

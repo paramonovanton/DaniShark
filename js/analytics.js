@@ -8,10 +8,19 @@
   var PLAN = {
     AppOpen: [],
     Level_Start: ['lvl', 'world', 'level_in_world', 'replay', 'control_mode'],
-    Level_Success: ['lvl', 'world', 'level_in_world', 'stars', 'hearts_left', 'duration_s', 'coins_gain', 'replay', 'control_mode'],          // CR-4 v5.1: stars = hearts left at the Kraken
+    Level_Success: ['lvl', 'world', 'level_in_world', 'stars', 'hearts_left', 'duration_s', 'coins_gain', 'replay', 'control_mode', 'continues'],          // CR-4 v5.1: stars = hearts left at the Kraken; v5.6: continues used in the attempt (stars capped at 1 after one)
     BossPhaseChanged: ['boss_id', 'phase', 'world', 'form', 'hearts_left'],
     BossFinale: ['boss_id', 'world', 'eaten', 'coins'],
-    Level_Failure: ['lvl', 'world', 'level_in_world', 'cause', 'level_gp_pct', 'duration_s', 'form_reached', 'control_mode'],
+    Level_Failure: ['lvl', 'world', 'level_in_world', 'cause', 'level_gp_pct', 'duration_s', 'form_reached', 'control_mode', 'continues'],
+    // PT4-4 (spec v5.6, R-OE-66..72): the Continue offer and the rewarded ad behind OE.Ads (the placeholder never sends ad_impression / TrackAdRevenue)
+    ContinueOffered: ['lvl', 'world', 'level_in_world', 'form', 'level_gp_pct', 'ad_available', 'coins_enabled', 'coins', 'continues_used', 'control_mode'],
+    ContinueChosen: ['lvl', 'world', 'level_in_world', 'choice', 'form', 'continues_used'],
+    ContinueApplied: ['lvl', 'world', 'level_in_world', 'method', 'continue_index', 'form'],
+    AdRequested: ['ad_placement', 'ad_type', 'provider'],
+    AdShown: ['ad_placement', 'ad_type', 'provider'],
+    AdRewarded: ['ad_placement', 'ad_type', 'provider'],
+    AdSkipped: ['ad_placement', 'ad_type', 'provider', 'watched_s'],
+    AdFailed: ['ad_placement', 'ad_type', 'provider', 'reason'],
     LevelQuit: ['world', 'level_in_world', 'level_gp_pct', 'hearts_left'],
     LevelRestart: ['world', 'level_in_world'],
     WorldSelected: ['world', 'level_in_world'],

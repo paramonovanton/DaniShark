@@ -266,6 +266,13 @@
   /* ---------------------------------------------------------------- Side-scroller mode (CR-2, spec v3 constants.BAL.SIDE)
      All values [DEFAULT - tune in playtest]. Classic keeps every BAL value above. */
   BAL.CONTROL_DEFAULT = 'side';
+  /* PT4-4 (spec v5.6 constants.BAL.CONTINUE / BAL.ADS, R-OE-66..73): the Continue offer after the last heart and the Ads provider (js/ads.js).
+     priceCoins, maxAd / maxCoins (1 + 1 continues per attempt), hearts and starCap are user decisions; the rest [DEFAULT - tune in playtest].
+     showAfterS = the sink before the window (= failDelayS); progress = round(min(levelGP, progressGP) / progressGP x 100) %.
+     PLACEHOLDER.loadS (Dev default, not in the spec): the test ad "loads" for 0.3 s so the Loading button state is visible (a real network has its own load time). */
+  BAL.CONTINUE = { priceCoins: 300, maxAd: 1, maxCoins: 1, hearts: 3, invulnS: 3.0, showAfterS: 0.8, clearRLen: 3.0, clearMinUnits: 600, threatHoldS: 2.0, starCap: 1, noOfferExitS: 1.5, toastS: 2.0, progressGP: 420 };
+  BAL.ADS = { provider: 'placeholder', placements: { 'continue': 'continue_last_heart' }, type: 'rewarded', showTimeoutS: 8.0, maxFails: 2, hideOnNoFill: true,
+    PLACEHOLDER: { durationS: 5.0, closeFromS: 0.0, readyAlways: true, loadS: 0.3 } };
   /* CR-4 v5.1 item 10 (spec constants.BAL.BOSSES): level 5 of every world is a boss level. Phases by level GP (180 / 300; Lionfish Pair: 240), every attack telegraphed >= 1.0 s, gaps >= 380 */
   BAL.BOSSES = {
     PHASE_GP_3: [180, 300], PHASE_GP_2: [240], TELEGRAPH_S: 1.0, GAP_MIN: 380, MAX_BR: 130, COMMON: { WAVE_TIMING: { maxDelayLow: 2.0, maxDelayHigh: 4.0, dropHighPct: 0.15, highFromForm: 7 } }, FINALE: { rel: 0.8, drift: 120, length_s: 10, coinsEaten: 50, coinsRetreat: 25 },

@@ -57,6 +57,36 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--letter
 [data-oe="guide-cards"] > [data-component="CMP_Main_CreatureCard"] { position: relative !important; left: auto !important; top: auto !important;
   right: auto !important; bottom: auto !important; flex: 0 0 264px; }
 [data-component="CMP_Main_CreatureCard"] { overflow: visible !important; }   /* Boss Tag hangs over the corner (-10, -14) */
-[data-oe="guide-art"] { background-image: var(--oe-art, var(--spr-SPR_UI_Img_Main_CreatureSilhouette)) !important;
+/* fallback = literal url relative to THIS stylesheet (a url() inside a custom property resolves against the stylesheet that
+   uses the var(), so var(--spr-...) from a page-relative sprites.css 404s here; QA R13 P3). --oe-art: absolute URLs. */
+[data-oe="guide-art"] { background-image: var(--oe-art, url('sprites/Main/Images/Creatures/SPR_UI_Img_Main_CreatureSilhouette.png')) !important;
   background-size: contain !important; background-position: center !important; background-repeat: no-repeat !important; }
 [data-oe="guide-thumb"] { top: var(--oe-thumb-top, 0px) !important; height: var(--oe-thumb-h, 100%) !important; bottom: auto !important; }
+/* PT4 Continue offer (T_Game_Continue, spec v5.6 R-OE-66..73). Panel = min(1240, W - 192) wide, centred (Figma: Wide 1240;
+   the Layout=Narrow reference at 1440 is 1200); Panel children are inset-anchored (Form Icon / Form Name left, Hearts
+   Preview / Hearts Text / Star Note right, Title / Form Track / offers / No Thanks / Ad Toast centred, Progress Text stretched). */
+[data-oe="continue-panel"] { width: min(1240px, calc(100% - 192px)) !important; left: 50% !important; right: auto !important; translate: -50% 0; }
+/* one offer hidden -> the other centres (Figma AdUnavailable: Coin Offer x 380 = centred; CoinsUsed: Ad Offer centred).
+   By state (one section, data-state switched) and by visibility (:has, any runtime hide of one offer). */
+[data-screen="T_Game_Continue"][data-state="AdUnavailable"] [data-oe="continue-coin"],
+[data-screen="T_Game_Continue"][data-state="CoinsUsed"] [data-oe="continue-ad"],
+[data-oe="continue-panel"]:has(> [data-oe="continue-ad"][hidden]) > [data-oe="continue-coin"],
+[data-oe="continue-panel"]:has(> [data-oe="continue-coin"][hidden]) > [data-oe="continue-ad"] {
+  left: 50% !important; right: auto !important; translate: -50% 0; }
+/* Ad Toast: hidden by default (Figma hidden layer); the page logic removes [hidden] for ~2 s (skipped / failed ad), no input */
+[data-oe="continue-toast"] { pointer-events: none; z-index: 3; }
+[data-oe="continue-toast"][hidden] { display: none !important; }
+/* CMP_Game_OfferButton State=Loading: the spinner icon (8 dots) turns in 8 steps per second; slower with reduced motion */
+[data-sprite="SPR_UI_Icn_Cmn_Spinner"] { animation: oe-spin 1s steps(8) infinite; transform-origin: 50% 50%; }
+@keyframes oe-spin { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { [data-sprite="SPR_UI_Icn_Cmn_Spinner"] { animation-duration: 2.4s; } }
+/* PT4 placeholder rewarded ad (T_Game_AdPlaceholder). Countdown Ring/Arc radial fill = time left, NO css mask (iOS tier):
+   the Arc sprite (full yellow ring, r 46..58 of 64) is redrawn as a conic-gradient clipped to a circle (border-radius +
+   content-box) with the centre disc painted in the Background colour (--oe-ad-hole, Ocean/Dim/Black #03121f, opaque).
+   Set --oe-ad-fill (0..1, default 1 = full ring as in Figma) on Countdown Ring each frame: timeLeft / BAL.ADS.PLACEHOLDER.durationS. */
+[data-oe="ad-arc"] { box-sizing: border-box; padding: 9.375%; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--oe-ad-hole, #03121f) 79.3%, transparent 80.2%) content-box,
+    conic-gradient(var(--oe-ad-arc, #ffd23f) calc(var(--oe-ad-fill, 1) * 360deg), transparent 0) content-box !important; }
+/* Close: 60 % opacity while counting down (= skip), 100 % when Complete (Figma per-state opacity, one adopted section) */
+[data-screen="T_Game_AdPlaceholder"][data-state="Countdown"] [data-oe="ad-close"] { opacity: 0.6 !important; }
+[data-screen="T_Game_AdPlaceholder"][data-state="Complete"] [data-oe="ad-close"] { opacity: 1 !important; }

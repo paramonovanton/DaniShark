@@ -150,6 +150,7 @@
   // BOSS PRIORITY (QA round 7): while a wave is queued, telegraphed or on its way, the normal threat / hazard spawner holds; the normal threats that are still outside the view are removed, and
   // the ones inside it that would make the wave unfair are removed after 0.5 s of waiting. A wave is therefore committed within about 1 s; the telegraph is shown for a wave that is going to come.
   P.bossBusy = function () {
+    if ((this.contHoldT || 0) > this.t) return true;                             // PT4-4 (R-OE-68): after a continue the threat streams and the boss waves hold for BAL.CONTINUE.threatHoldS
     if (!this.bossInfo || !this.bossIsScripted() || this.finale) return false;
     if (this.bossHoldT > this.t || (this.bossPostT || 0) > this.t || this.bossQ.length || this.bossTele.length || this.bossSoon()) return true;
     var i, c; for (i = 0; i < this.creatures.length; i++) { c = this.creatures[i]; if (c.bossAtk && !c.dead && c.role !== 'prey' && (this.side ? c.x > this.player.x - 400 : c.x + c.len * 0.5 > this.cam.x)) return true; }       // Side: until the body is well behind the player; Classic: while any of it is in the view

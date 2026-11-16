@@ -26,6 +26,8 @@
     this.viewW = BAL.DESIGN_W / BAL.ZOOM; this.rotate = false;
     this.floatQueue = [];
     this.tip = 'oe_loading_tip_' + (1 + Math.floor(Math.random() * 3));
+    var self = this;
+    if (OE.Ads) OE.Ads.on(function (what) { if (what === 'shown') self.onAdShown(); });      // PT4-4: AdShown + audio pause when the rewarded ad is on screen
   }
   OE.Game = Game;
   var P = Game.prototype;
@@ -70,6 +72,9 @@
       case 'evolution': return { screen: 'T_Game_Evolution', state: 'Default' };
       case 'complete': return { screen: 'T_Game_LevelComplete', state: 'Default' };
       case 'fail': return { screen: 'T_Game_Fail', state: 'Default' };
+      case 'continue':                                                                          // PT4-4: the placeholder ad covers the Continue offer while it shows
+        if (OE.Ads && OE.Ads.showing()) return { screen: 'T_Game_AdPlaceholder', state: OE.Ads.info().state === 'Complete' ? 'Complete' : 'Countdown' };
+        return { screen: 'T_Game_Continue', state: r.contState || 'Default' };
       case 'worldcomplete': return { screen: 'T_Game_WorldComplete', state: r.result.firstWorldClear ? (r.result.finalWorld ? 'FinalWorld' : 'Default') : 'Replay' };
       default:
         if (r.krakenT > 0) return { screen: 'T_Game_Evolution', state: 'LightKraken' };       // CR-4 v5.1: the Kraken celebration (2.0 s, 1.2 s on a boss level)
@@ -89,6 +94,7 @@
   /* ---------------------------------------------------------------- loading and main screen */
   P.enterMain = function (opts) {
     opts = opts || {};
+    this.dropAd();
     this.mode = 'main'; this.run = null; this.sim = null; this.banner = null; this.hint = null;
     this.mainEnterId = (this.mainEnterId || 0) + 1;
     var m = this.main;
@@ -188,7 +194,9 @@
     var replay = M.isReplay(this.save, world, level);                                   // already completed before (tracking only: every level plays the same)
     this.mode = 'game'; this.busy = false; this.banner = null; this.damagedT = 0; this.floatQueue = []; this.ptrDown = false;
     this.sim = new OE.Sim({ world: world, level: level, viewW: this.viewW, controlMode: this.save.settings.controlMode, seed: this.seedValue === null ? (Date.now() & 0xffffff) : this.seedValue });
-    this.run = { world: world, level: level, replay: replay, phase: opts.skipBanner ? 'play' : 'start', timer: BAL.levelStartS, result: null, pauseState: 'Default', winDelay: 0, evoT: 0, evo: null, hintDone: {}, lastPhaseBeforePause: 'play', evoLightT: 0, evoLightTo: 0, krakenT: 0, krakenPending: false, krakenHearts: 3, bossEaten: false, endReason: null };
+    this.run = { world: world, level: level, replay: replay, phase: opts.skipBanner ? 'play' : 'start', timer: BAL.levelStartS, result: null, pauseState: 'Default', winDelay: 0, evoT: 0, evo: null, hintDone: {}, lastPhaseBeforePause: 'play', evoLightT: 0, evoLightTo: 0, krakenT: 0, krakenPending: false, krakenHearts: 3, bossEaten: false, endReason: null,
+      cont: { offered: 0, adUsed: false, coinsUsed: false, count: 0, adHidden: false, fails: 0 }, contState: null, contBusy: null, contToast: null, contExitT: 0 };   // PT4-4: every attempt (new level, Retry, Restart) starts with fresh continue limits
+    this.dropAd();
     this.acc = 0;
     if (this.assets) { var lids = this.assets.levelIds(world, 1, level); if (this.assets.retain) this.assets.retain(lids); this.assets.preload(lids); if (OE.Browser && OE.Browser.bootMark) OE.Browser.bootMark(10000); }   // BUG-U6: a level loading its art is a heavy moment for the crash guard   // world sprites + current/next form; everything else is released (BUG-U4); the banner waits for them (see update)
     this.initHint();
@@ -277,6 +285,8 @@
       if (r.phase === 'pause') { if (r.pauseState === 'ConfirmQuit') this.cancelQuit(); else this.resume(); return true; }
       // BUG-U3: Esc / Android back is a way out of every other window too
       if (r.phase === 'evolution') { this.evolutionContinue(); return true; }
+      // PT4-4 (R-OE-67): Esc / Android back = No thanks on the Continue offer; on the placeholder ad = its Close Button; nothing while the ad loads
+      if (r.phase === 'continue') { if (OE.Ads && OE.Ads.showing()) this.adClose(); else this.continueDecline('back'); return true; }
       if (r.phase === 'complete' || r.phase === 'fail') { this.goHome(); return true; }
       if (r.phase === 'worldcomplete') { this.worldCompleteContinue(); return true; }
     }
@@ -435,12 +445,12 @@
   P.finishWin = function () {
     var r = this.run, s = this.sim;
     if (r.result) return;
-    var out = M.applyLevelWin(this.save, { world: r.world, level: r.level, hearts: r.krakenHearts, bossEaten: r.bossEaten, coinsCollected: s.coins });
+    var out = M.applyLevelWin(this.save, { world: r.world, level: r.level, hearts: r.krakenHearts, bossEaten: r.bossEaten, coinsCollected: s.coins, continues: r.cont.count });   // R-OE-69: stars capped after a continue
     this.save = out.save;
     r.result = out.res; r.result.duration = s.t; r.result.reason = r.endReason || 'kraken';
     this.commit();
     var res = out.res;
-    this.track('Level_Success', { control_mode: s.controlMode, lvl: this.lvlNumber(r.world, r.level), world: r.world, level_in_world: r.level, stars: res.stars, hearts_left: res.heartsLeft, duration_s: Math.round(s.t), coins_gain: res.coinsRow, replay: res.replay });
+    this.track('Level_Success', { control_mode: s.controlMode, lvl: this.lvlNumber(r.world, r.level), world: r.world, level_in_world: r.level, stars: res.stars, hearts_left: res.heartsLeft, duration_s: Math.round(s.t), coins_gain: res.coinsRow, replay: res.replay, continues: r.cont.count });
     if (r.level === 5) {
       r.phase = 'worldcomplete';
       this.track('WorldCompleted', { world: r.world, first_time: res.firstWorldClear, stars: res.stars, coins_gain: res.coinsRow });
@@ -452,12 +462,159 @@
   P.onFail = function (e) {
     var r = this.run, s = this.sim;
     if (s.goalReached) { r.endReason = r.endReason || 'kraken'; this.finishWin(); return; }        // hearts 0 at the very moment of the Kraken still completes the level
-    r.phase = 'fail'; r.cause = e.cause || s.cause || { name: '?', kind: 'hazard', id: '?' };
+    r.cause = e.cause || s.cause || { name: '?', kind: 'hazard', id: '?' };
+    if (this.openContinue()) return;                                                            // PT4-4 (R-OE-66): the Continue offer first when a continue is possible
+    this.toFail();
+  };
+  // T_Game_Fail (TR-OE-37 / TR-OE-90 / TR-OE-91): the attempt ends; Level_Failure is sent only here (never while the offer or an ad is open)
+  P.toFail = function () {
+    var r = this.run, s = this.sim;
+    this.dropAd();
+    r.phase = 'fail'; r.contBusy = null; r.contToast = null; r.contExitT = 0;
     this.save.stats.levelsLost += 1;
     this.commit();
-    this.track('Level_Failure', { control_mode: s.controlMode, lvl: this.lvlNumber(r.world, r.level), world: r.world, level_in_world: r.level, cause: r.cause.id, level_gp_pct: Math.min(100, Math.round(100 * s.levelGP / s.goalGP)), duration_s: Math.round(s.t), form_reached: s.maxForm });
+    this.track('Level_Failure', { control_mode: s.controlMode, lvl: this.lvlNumber(r.world, r.level), world: r.world, level_in_world: r.level, cause: r.cause.id, level_gp_pct: Math.min(100, Math.round(100 * s.levelGP / s.goalGP)), duration_s: Math.round(s.t), form_reached: s.maxForm, continues: r.cont.count });
     this.busy = false;
     this.changed();
+  };
+
+  /* ---------------------------------------------------------------- PT4-4: Continue offer (T_Game_Continue, R-OE-66..73) and the rewarded ad (OE.Ads, R-OE-71/72) */
+  P.adPlacement = function () { return BAL.ADS.placements['continue']; };
+  P.adParams = function (extra) { var o = { ad_placement: this.adPlacement(), ad_type: BAL.ADS.type, provider: OE.Ads ? OE.Ads.providerId() : 'none' }, k; for (k in extra || {}) o[k] = extra[k]; return o; };
+  // what is possible now: ad = offerable (ready, unused, not hidden); coins = the coin continue can be paid; coinShown = the Coin Offer is on the window
+  P.continueOptions = function () {
+    var r = this.run, C = BAL.CONTINUE, c = r.cont;
+    var adUsedUp = c.adUsed && C.maxAd <= 1, coinUsedUp = c.coinsUsed && C.maxCoins <= 1;
+    var ad = !adUsedUp && !c.adHidden && !!(OE.Ads && OE.Ads.isReady(this.adPlacement()));
+    var coins = !coinUsedUp && this.save.coins >= C.priceCoins;
+    return { ad: ad, coins: coins, coinShown: !coinUsedUp, any: ad || coins };
+  };
+  // the window state: AdUnavailable (Ad Offer hidden), CoinsUsed (Coin Offer hidden), NotEnoughCoins (Coin Button disabled with the price), Default
+  P.continueStateNow = function () {
+    var o = this.continueOptions();
+    if (!o.ad) return 'AdUnavailable';
+    if (!o.coinShown) return 'CoinsUsed';
+    if (!o.coins) return 'NotEnoughCoins';
+    return 'Default';
+  };
+  P.contBase = function () { var r = this.run, s = this.sim; return { lvl: this.lvlNumber(r.world, r.level), world: r.world, level_in_world: r.level }; };
+  P.openContinue = function () {
+    var r = this.run, s = this.sim, o = this.continueOptions(), b;
+    if (!o.any) return false;                                                                   // nothing possible: Level Failed at once (orchestrator default: no window with only a disabled offer)
+    r.phase = 'continue'; r.contState = this.continueStateNow(); r.contBusy = null; r.contToast = null; r.contExitT = 0; r.cont.offered++;
+    this.evoFx = null; r.evoLightT = 0;                                                         // R-OE-73a: a running evolution FX completes at once (timeScale 1, zoom, flash 0, banner hidden), never replayed
+    this.hint = null; this.banner = null;
+    this.releasePointer();
+    b = this.contBase();
+    b.form = s.form; b.level_gp_pct = Math.min(100, Math.round(100 * s.levelGP / s.goalGP)); b.ad_available = o.ad; b.coins_enabled = o.coins; b.coins = this.save.coins; b.continues_used = r.cont.count; b.control_mode = s.controlMode;
+    this.track('ContinueOffered', b);
+    this.busy = false;
+    this.changed();
+    return true;
+  };
+  P.refreshContinue = function () {
+    var r = this.run; if (!r || r.phase !== 'continue') return;
+    var st = this.continueStateNow();
+    if (st !== r.contState) { r.contState = st; this.changed(); }
+  };
+  P.contChosen = function (choice) { var b = this.contBase(); b.choice = choice; b.form = this.sim.form; b.continues_used = this.run.cont.count; this.track('ContinueChosen', b); };
+  P.contToastShow = function (key) { this.run.contToast = { key: key, t: BAL.CONTINUE.toastS }; this.changed(); };
+  // Coin Button (R-OE-70): 300 coins at once, saved immediately; a tap on a disabled button does nothing; taps are locked after the first accepted one
+  P.continueCoins = function () {
+    var r = this.run, C = BAL.CONTINUE;
+    if (!r || r.phase !== 'continue' || r.contBusy || r.contExitT > 0 || (OE.Ads && OE.Ads.showing())) return false;
+    if (!this.continueOptions().coins) return false;
+    r.contBusy = 'coins';
+    this.save.coins = Math.max(0, this.save.coins - C.priceCoins);
+    this.commit();
+    this.track('ProductMovement', { type: 'spend', id: 'coins', amount: C.priceCoins, source1: 'continue', source2: 'level_' + this.lvlNumber(r.world, r.level) });
+    this.contChosen('coins');
+    r.cont.coinsUsed = true;
+    this.applyContinue('coins');
+    return true;
+  };
+  // Ad Button (R-OE-71): Loading on the Ad Button, Coin / No Thanks locked, AdRequested; the provider's result comes back through onAdResult
+  P.continueAd = function () {
+    var r = this.run, self = this, run = r, req;
+    if (!r || r.phase !== 'continue' || r.contBusy || r.contExitT > 0 || !OE.Ads) return false;
+    if (!this.continueOptions().ad) return false;
+    r.contBusy = 'ad'; r.contToast = null;
+    this.contChosen('ad');
+    this.track('AdRequested', this.adParams());
+    this.changed();
+    r.adReqId = OE.Ads.seq + 1;
+    OE.Ads.showRewarded(this.adPlacement(), function (res) { if (self.run === run && run.phase === 'continue' && run.contBusy === 'ad') self.onAdResult(res); });
+    return true;
+  };
+  P.adClose = function () { if (!OE.Ads || !this.run || this.run.phase !== 'continue') return false; var ok = OE.Ads.close(); this.changed(); return ok; };
+  P.onAdShown = function () {
+    var r = this.run; if (!r || r.phase !== 'continue' || r.contBusy !== 'ad' || !OE.Ads.req || OE.Ads.req.id !== r.adReqId) return;
+    this.track('AdShown', this.adParams());
+    if (OE.Audio && OE.Audio.setPaused) OE.Audio.setPaused(true);                              // R-OE-72: music (lobby / ambient) and sounds stop while the ad plays
+    this.changed();
+  };
+  P.onAdResult = function (res) {
+    var r = this.run, A = BAL.ADS, o;
+    r.contBusy = null;
+    if (OE.Audio && OE.Audio.setPaused) OE.Audio.setPaused(false);
+    if (res.result === 'rewarded') {
+      this.track('AdRewarded', this.adParams());
+      r.cont.adUsed = true;
+      this.applyContinue('ad');
+      return;
+    }
+    if (res.result === 'skipped') {
+      this.track('AdSkipped', this.adParams({ watched_s: Math.round(res.watchedS || 0) }));
+      this.contToastShow('oe_continue_ad_skipped');
+      this.refreshContinue(); this.changed();
+      return;
+    }
+    r.cont.fails++;
+    this.track('AdFailed', this.adParams({ reason: res.reason || 'error' }));
+    if ((res.reason === 'no_fill' && A.hideOnNoFill) || r.cont.fails >= A.maxFails) r.cont.adHidden = true;      // the Ad Offer is hidden for the rest of the attempt
+    this.contToastShow('oe_continue_ad_failed');
+    o = this.continueOptions();
+    if (!o.any) { r.contExitT = BAL.CONTINUE.noOfferExitS; r.contState = r.contState; }        // TR-OE-91: the toast shows, then Level Failed (the window keeps its look meanwhile)
+    else this.refreshContinue();
+    this.changed();
+  };
+  // No Thanks Button / Esc / back (TR-OE-90): Level Failed now, no second delay; locked while an ad loads or plays
+  P.continueDecline = function (src) {
+    var r = this.run;
+    if (!r || r.phase !== 'continue' || r.contBusy || r.contExitT > 0) return false;      // also locked while the window exits on its own (TR-OE-91)
+    this.contChosen('decline');
+    this.toFail();
+    return true;
+  };
+  // R-OE-68: the run resumes where it was with 3 hearts, invulnerable, threats cleared and held
+  P.applyContinue = function (method) {
+    var r = this.run, s = this.sim, b;
+    r.cont.count++;
+    s.revive(); s.drain();
+    r.phase = 'play'; r.contBusy = null; r.contToast = null; r.contExitT = 0; this.acc = 0; this.damagedT = 0;
+    this.releasePointer();
+    b = this.contBase(); b.method = method; b.continue_index = r.cont.count; b.form = s.form;
+    this.track('ContinueApplied', b);
+    this.changed();
+  };
+  P.dropAd = function () {
+    if (!OE.Ads) return;
+    OE.Ads.abort();
+    if (OE.Audio && OE.Audio.setPaused) OE.Audio.setPaused(false);
+  };
+  P.updateContinue = function (dt) {
+    var r = this.run;
+    if (this.visibility === 'hidden') return;                                                  // R-OE-72: the UI clock is frozen while the page is hidden
+    if (OE.Ads) OE.Ads.update(dt);
+    if (r.phase !== 'continue') return;
+    if (r.contToast) { r.contToast.t -= dt; if (r.contToast.t <= 0) { r.contToast = null; this.changed(); } }
+    if (r.contExitT > 0) { r.contExitT -= dt; if (r.contExitT <= 0) { r.contExitT = 0; this.toFail(); return; } }
+    if (!r.contBusy && !r.contExitT) this.refreshContinue();
+  };
+  P.continueInfo = function () {
+    var r = this.run, c = r ? r.cont : null;
+    return { offered: c ? c.offered : 0, open: !!(r && r.phase === 'continue'), state: r && r.phase === 'continue' ? r.contState : null, adUsed: c ? c.adUsed : false, coinsUsed: c ? c.coinsUsed : false, count: c ? c.count : 0, adHidden: c ? c.adHidden : false, fails: c ? c.fails : 0,
+      busy: r ? r.contBusy : null, toast: r && r.contToast ? r.contToast.key : null, exitS: r ? Math.round((r.contExitT || 0) * 1000) / 1000 : 0, price: BAL.CONTINUE.priceCoins };
   };
 
   /* ---------------------------------------------------------------- PT2-4: evolution FX clock (BAL.EVO_FX) */
@@ -517,6 +674,7 @@
     }
     var r = this.run, s = this.sim;
     if (this.banner) { this.banner.t -= dt; if (this.banner.t <= 0) { this.banner = null; this.changed(); } }
+    if (r.phase === 'continue' || (OE.Ads && OE.Ads.req)) { this.updateContinue(dt); return; }     // PT4-4: the sim is frozen while the offer / an ad is open
     switch (r.phase) {
       case 'start':
         if (this.assets && !this.assets.ready() && (r.assetWait = (r.assetWait || 0) + dt) < BAL.assetWaitS) return;   // hold the banner while sprites load, capped
@@ -576,8 +734,10 @@
       bestForm: sv.stats.bestForm, form: 1, size: 10, hearts: null, coins: sv.coins, background: null, bossPhase: 0,
       jump: { eligible: false, airborne: false, cooldown: 0 }, player: null, creatures: [], surfaceTargets: [],
       hint: this.hint, banner: this.banner ? this.banner.id : null, mode: this.mode,
-      controlMode: sv.settings.controlMode, forwardSpeed: 0, threats: []
+      controlMode: sv.settings.controlMode, forwardSpeed: 0, threats: [],
+      gpMul: BAL.GROWTH.GP_MUL, hidden: this.visibility === 'hidden', 'continue': this.continueInfo()          // spec v5.6 qaHooks: state().gpMul / continue / audio.paused / hidden
     };
+    out.audio.paused = !!(OE.Audio && OE.Audio.paused);
     if (this.mode === 'main') { out.world = this.main.focus; }
     if (s) {
       var p = s.player, i, img = this.assets && this.assets.get ? this.assets.get('PLY_F' + s.form) : null, nat = img && img.width ? img.width : 512;

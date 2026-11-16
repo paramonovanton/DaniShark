@@ -76,7 +76,13 @@
     oe_fs_unavailable: "Fullscreen is not available here — open the game in its own browser tab",
     oe_fs_ios: "Fullscreen is not available here — on iPhone use Share > Add to Home Screen to play fullscreen",
     // debug (BAL.DEBUG_UNLOCK): not player-facing
-    oe_debug_unlock: 'Unlock all worlds and levels', oe_debug_tag: 'DEBUG'
+    oe_debug_unlock: 'Unlock all worlds and levels', oe_debug_tag: 'DEBUG',
+    // PT4-4 (spec v5.6): Continue offer (T_Game_Continue) and the placeholder rewarded ad (T_Game_AdPlaceholder)
+    oe_continue_title: 'Don\'t give up!', oe_continue_progress: '{0}% of the way to Kraken', oe_continue_hearts: 'Continue with {0} hearts',
+    oe_continue_ad: 'Watch an ad', oe_continue_ad_loading: 'Loading...', oe_continue_coins: 'Continue', oe_continue_balance: 'You have {0}',
+    oe_continue_not_enough: 'Not enough coins', oe_continue_no_thanks: 'No thanks', oe_continue_star_note: 'Finishing after a continue gives 1 star',
+    oe_continue_ad_skipped: 'Watch to the end to continue', oe_continue_ad_failed: 'No video right now. Try again later',
+    oe_ad_test_title: 'Test ad', oe_ad_test_placement: 'Placement: {0}', oe_ad_test_countdown: 'Reward in {0}', oe_ad_test_done: 'Reward earned!', oe_ad_test_close: 'Close'
   };
 
   function t(key) {

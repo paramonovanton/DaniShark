@@ -130,6 +130,7 @@
     var s = U.deepCopy(save), w = s.worlds[run.world], lv = run.level, goal = goalForm(run.world, lv);
     var replay = lv <= w.levelsCompleted, firstWorldClear = false;
     var stars = starsFor(run.hearts === undefined ? 3 : run.hearts);
+    if (run.continues > 0 && BAL.CONTINUE) stars = Math.min(stars, BAL.CONTINUE.starCap);          // PT4-4 (R-OE-69): a level finished after any continue gets at most starCap (1) stars
     if (!replay) w.levelsCompleted = Math.max(w.levelsCompleted, lv);
     var prevBest = w.bestForm[lv - 1];
     if (stars > w.stars[lv - 1]) w.stars[lv - 1] = stars;

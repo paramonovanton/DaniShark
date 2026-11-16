@@ -578,6 +578,18 @@
   // air = the player is airborne (surface jump): only the eating part runs (prey eaten, touch-but-no-eat logged); no bump, damage or sting during the flight
   P.collideCreatures = function (air) {
     var p = this.player, i, c;
+    // R-OE-73a (spec v5.6): eats first. Every prey body the mouth touches this step is eaten (and an evolution it triggers, with its invulnerability)
+    // before any predator / hazard contact of the same step is resolved, whatever the order of the creature list
+    for (i = 0; i < this.creatures.length; i++) {
+      c = this.creatures[i];
+      if (c.dead || c.faded || c.hidden) continue;
+      var r0 = c.role, sp0 = c.def.sp || {}, dx0 = p.x - c.x;
+      if (r0 !== 'prey' && r0 !== 'hazard' && c.def.k !== 'pas' && !c.inflated && c.size <= this.S / BAL.eatRatio + 1e-9) { c.role = r0 = this.roleOf(c); }
+      if (r0 !== 'prey') continue;
+      if (sp0.armor && dx0 * c.facing > 0.1 * c.len && Math.abs(p.y - c.y) < 0.4 * c.len) continue;      // head-on armour: the second pass bumps it
+      if (sp0.tail && dx0 * c.facing < -0.15 * c.len && this.bodyHit(c)) continue;                        // tail sting from behind: the second pass
+      if (this.eatHit(c)) this.eatCreature(c);
+    }
     for (i = 0; i < this.creatures.length; i++) {
       c = this.creatures[i];
       if (c.dead) continue;

@@ -88,6 +88,7 @@
         this.hearts = Math.min(BAL.GROWTH.HEARTS_MAX, this.hearts + hf * BAL.GROWTH.HEART_ON_EVOLVE);
         this.player.invuln = Math.max(this.player.invuln, BAL.GROWTH.EVO_INVULN_S, BAL.EVO_FX.invulnS);      // sim time: with the slow motion it covers more than the unscaled 1.5 s
         this.evoPushBack(f);                                                                  // PT2-4: nearby threats are pushed back during the evolution FX
+        this.evoStep = this.stepNo;                                                           // R-OE-73a: a hit earlier in this same step does not count (evoBeforeDamage)
         this.emit('evolve', { from: from, to: f, hearts: this.hearts });
       }
       if (f >= this.goalForm && !this.goalReached) { this.goalReached = true; this.goalAt = this.t; this.krakenHearts = this.hearts; if (!silent) this.emit('kraken', { form: f, hearts: this.hearts }); }      // CR-4 v5.1: the goal of every level = the Kraken; stars = hearts left now
@@ -320,6 +321,7 @@
     var p = this.player;
     if (p.invuln > 0 || this.hearts <= 0 || this.dying || p.airborne) return false;
     this.hearts -= 1; p.invuln = BAL.invuln; p.blink = BAL.invuln;
+    this.hitN = this.hitStep === this.stepNo ? (this.hitN || 0) + 1 : 1; this.hitStep = this.stepNo;
     if (!this.side) this.push(p.x - (fx === undefined ? p.x - p.facing : fx), p.y - (fy === undefined ? p.y : fy), BAL.dmgKnock);   // Side-scroller: pass through, no knockback
     this.emit('damage', { source: src.id || src.name, name: src.name, kind: src.kind, hearts: this.hearts, x: p.x, y: p.y });
     this.cause = { name: src.name, kind: src.kind, id: src.id || src.name };
@@ -327,10 +329,107 @@
     return true;
   };
   P.die = function (src) {
-    this.dying = true; this.dyingT = BAL.failDelayS;
+    var p = this.player;
+    this.dying = true; this.dyingT = BAL.CONTINUE ? BAL.CONTINUE.showAfterS : BAL.failDelayS;      // PT4-4: the sink before the Continue offer / Level Failed (0.8 s)
     this.cause = { name: src.name, kind: src.kind, id: src.id || src.name };
-    this.player.vx = this.player.vy = 0;
+    this.dieAt = p.airborne ? null : { x: p.x, y: p.y };                                    // R-OE-68: a continue puts the player back here (airborne: the landing point, R-OE-73c)
+    if (!p.airborne) p.vx = p.vy = 0;
     this.emit('dying', { cause: this.cause });
+  };
+  // the sink after the last heart (both modes). R-OE-73c: a surface jump in flight finishes first; the fail event waits for max(sink, landing)
+  P.updateDying = function (dt) {
+    var p = this.player;
+    this.dyingT -= dt;
+    if (p.airborne) { this.updateJump(dt); if (this.side) p.vx = this.fwd; if (!p.airborne) this.dieAt = { x: p.x, y: p.y }; }
+    else { p.y += 140 * dt; p.ang = p.vang = p.facing > 0 ? 0.9 : Math.PI - 0.9; }
+    if (this.dyingT <= 0 && !p.airborne && !this.ended) { this.ended = 'fail'; this.halted = true; this.emit('fail', { cause: this.cause }); }
+  };
+  /* R-OE-73a (spec v5.6): inside one step eats and the evolution they trigger come before damage. Creature contacts already run eats first
+     (collideCreatures); a hit from an earlier part of the step (a shock, a boss projectile) in the step of an evolution is taken back here,
+     as if the evolution's invulnerability had come first: the heart, the dying state and the damage / dying events of this step. */
+  P.evoBeforeDamage = function () {
+    if (this.hitStep !== this.stepNo || this.evoStep !== this.stepNo || !this.hitN || this.ended) return false;
+    var n = this.hitN; this.hitN = 0;
+    this.hearts = Math.min(BAL.GROWTH.HEARTS_MAX, this.hearts + n);
+    this.player.blink = 0;
+    if (this.dying) { this.dying = false; this.dyingT = 0; this.dieAt = null; }
+    this.events = this.events.filter(function (e) { return e.type !== 'damage' && e.type !== 'dying'; });
+    this.hitsUndone = (this.hitsUndone || 0) + n;
+    return true;
+  };
+  /* PT4-4 Continue (R-OE-68): back where the last heart was lost (the sink undone; airborne: in the water at the landing point), BAL.CONTINUE.hearts,
+     invulnerability invulnS with the damage blink; threats within max(clearMinUnits, clearRLen x len) pushed out to that radius (Classic radially,
+     Side along x like EVO_FX.push; one that cannot be pushed fairly is removed), moving hazard objects in it removed (static obstacles stay), the threat
+     spawner and the boss waves hold for threatHoldS (prey keeps coming). Form, level GP, size, coins, boss phase, event state are kept. */
+  P.revive = function () {
+    var C = BAL.CONTINUE, p = this.player, at = this.dieAt || { x: p.x, y: p.y }, yb;
+    if (!this.dying && this.ended !== 'fail' && this.hearts > 0) return false;
+    this.dying = false; this.dyingT = 0; this.ended = null; this.halted = false; this.cause = null; this.dieAt = null; this.hitN = 0;
+    this.hearts = C.hearts;
+    if (p.airborne) { p.airborne = false; p.jump = null; p.cooldown = BAL.jumpCooldown; }
+    yb = this.yBounds();
+    p.x = this.side ? at.x : U.clamp(at.x, p.r, W - p.r); p.y = U.clamp(at.y, yb[0], yb[1]);
+    p.vx = p.vy = 0; p.kick = null; p.kbT = 0; p.stun = 0; p.gravT = undefined; p.shoveT = 0; p.peerT = 0; p.slowT = 0; p.grabT = 0; p.tilt = 0;
+    p.ang = p.vang = this.side || p.facing > 0 ? 0 : Math.PI;
+    p.invuln = C.invulnS; p.blink = C.invulnS;
+    if (this.side) this.fwd = this.fwdBase();
+    if (this.side) this.snapCamera();
+    if (!this.side) { p.ptr.x = p.x; p.ptr.y = p.y; p.ptr.sx = this.scrX(p.x); p.ptr.sy = this.scrY(p.y); p.ptr.down = false; }
+    this.continueClear();
+    this.holdThreats(C.threatHoldS);
+    this.continues = (this.continues || 0) + 1;
+    this.snapPrev();                                                                          // the frame interpolation must not smear the move back
+    this.emit('continue', { n: this.continues, x: p.x, y: p.y });
+    return true;
+  };
+  P.continueRadius = function () { var C = BAL.CONTINUE; return Math.max(C.clearMinUnits, C.clearRLen * this.player.len); };
+  P.continueClear = function () {
+    var p = this.player, R = this.continueRadius(), i, c, o, dx, dy, d, need, yb = [this.waterY + 20, BAL.seabedY - 6], ahead = [], n = 0, rm = 0;
+    function threat(c) { return !c.dead && !c.boss && !c.finaleBoss && !(c.mv && c.mv.pat === 'BOSS') && c.def.k !== 'pas' && (c.role === 'predator' || c.role === 'hazard' || (c.def.sp && c.def.sp.shock) || c.inflated); }
+    for (i = 0; i < this.creatures.length; i++) {
+      c = this.creatures[i];
+      if (!threat(c)) continue;
+      dx = c.x - p.x; dy = c.y - p.y; d = Math.sqrt(dx * dx + dy * dy); need = R + (c.br || 0);
+      if (d >= need) continue;
+      if (c.scr || c.bossAtk) { c.dead = true; rm++; continue; }                               // an active boss-wave body: removed (its wave is cleared)
+      if (this.side) { c.x = p.x + (dx >= 0 ? 1 : -1) * Math.sqrt(Math.max(0, need * need - dy * dy)); if (dx >= 0) ahead.push(c); }
+      else { if (d < 1) { dx = 1; dy = 0; d = 1; } c.x = U.clamp(p.x + dx / d * need, c.br, W - c.br); c.y = U.clamp(p.y + dy / d * need, yb[0] + c.br, yb[1] - (c.def.sband === 'floor' ? 0 : c.br)); if (Math.hypot(c.x - p.x, c.y - p.y) < R) { c.dead = true; rm++; continue; } }   // pinned at a wall inside the radius: removed
+      if (c.mv && c.mv.st && (c.mv.st === 'warn' || c.mv.st === 'dash')) { c.mv.st = 'wait'; c.state = ''; c.warn = 0; }
+      if (c.state === 'tele' || c.state === 'shock') { c.state = ''; c.sc = 0; c.warn = 0; }
+      n++;
+    }
+    if (this.side && ahead.length && this.fairOver) {
+      this.floorFair = true;
+      if (!this.fairOver(ahead, null, true)) ahead.forEach(function (q) { if (!this.fairOver([q], null, true)) { q.dead = true; rm++; n--; } }, this);    // a threat that cannot be pushed fairly is removed
+      this.floorFair = false;
+    }
+    var moving = { mine: 1, frock: 1, crock: 1, ink: 1, shockring: 1, sonar: 1, ring: 1, tent: 1, swall: 1, wall: 1, column: 1 };
+    for (i = 0; i < this.objs.length; i++) {
+      o = this.objs[i];
+      if (!moving[o.kind] || o.dead) continue;
+      if (o.kind === 'crock' && o.st === 'idle') continue;                                     // a collapsing rock still in the ceiling is part of the level
+      var inR = o.kind === 'swall' || o.kind === 'wall' || o.kind === 'column' ? Math.abs(o.x - p.x) < R : (o.kind === 'tent' ? Math.abs(o.x - p.x) < R : Math.hypot(o.x - p.x, (o.y === undefined ? p.y : o.y) - p.y) < R);
+      if (inR) { o.dead = true; rm++; }
+    }
+    this.objs = this.objs.filter(function (q) { return !q.dead; });
+    if (this.projs) this.projs = this.projs.filter(function (q) { return Math.hypot(q.x - p.x, q.y - p.y) >= R; });
+    this.zones = this.zones.filter(function (z) { return !(z.boss && Math.abs(z.x - p.x) < R + (z.w || 0) / 2); });       // boss lava / plumes near the player
+    this.contCleared = { pushed: n, removed: rm, r: R };
+    return this.contCleared;
+  };
+  // the threat spawner and the boss waves wait holdS (prey keeps spawning); a wave after it is telegraphed as usual
+  P.holdThreats = function (holdS) {
+    var S = this.sT, b = this.bossInfo, k, until = this.t + holdS;
+    this.contHoldT = until;
+    if (S) { ['fall', 'shock', 'boss', 'tent'].forEach(function (key) { if (typeof S[key] === 'number') S[key] = Math.max(S[key], holdS); }); if (S.env && typeof S.env.struct === 'number') S.env.struct = Math.max(S.env.struct, holdS); }
+    if (this.fallT !== undefined) this.fallT = Math.max(this.fallT, holdS);
+    if (this.shockT !== undefined) this.shockT = Math.max(this.shockT, holdS);
+    if (this.tentT2 !== undefined) this.tentT2 = Math.max(this.tentT2, holdS);
+    if (b) {
+      for (k in b.T) b.T[k].t = Math.max(b.T[k].t, holdS);
+      this.bossQ = []; this.bossTele = [];                                                     // the active wave is cleared (R-OE-73b)
+      this.bossHoldT = Math.max(this.bossHoldT || 0, until);
+    }
   };
   P.bump = function (c, soft) {
     var p = this.player;
@@ -405,11 +504,7 @@
     if (p.grabT > 0) p.grabT -= dt;
     if (p.cooldown > 0) p.cooldown -= dt;
     if (p.biteT > 0) p.biteT -= dt;
-    if (this.dying) {
-      this.dyingT -= dt; p.y += 140 * dt; p.ang = p.vang = p.facing > 0 ? 0.9 : Math.PI - 0.9;
-      if (this.dyingT <= 0 && !this.ended) { this.ended = 'fail'; this.halted = true; this.emit('fail', { cause: this.cause }); }
-      return;
-    }
+    if (this.dying) { this.updateDying(dt); return; }
     if (p.airborne) { this.updateJump(dt); return; }
 
     var cap = this.pmax() * (p.slowT > 0 ? 0.5 : 1) * (p.grabT > 0 ? 0.4 : 1) * p.zoneMul;
@@ -489,7 +584,7 @@
     this.checkEnd();
     this.stampLeads();                                                    // the warning lead of every blocker is recorded the step it appears (state().blockers.warnLead)
   };
-  P.checkEnd = function () { /* CR-3: the level ends through Game (goal banner, bonus phase, Finish, goal + 2, hearts 0 after the goal) */ };
+  P.checkEnd = function () { /* CR-3: the level ends through Game (goal banner, bonus phase, Finish, goal + 2, hearts 0 after the goal) */ this.evoBeforeDamage(); };
   // advance by ms of simulated time (fixed 60 Hz)
   P.advance = function (ms) {
     var n = Math.round(ms / (1000 / 60)), i;

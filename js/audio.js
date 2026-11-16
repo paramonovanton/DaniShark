@@ -32,13 +32,13 @@
     },
     applySettings: function () {
       if (!this.ctx || !this.started) return;
-      this.sfxGain.gain.value = this.sound ? 1 : 0;
+      this.sfxGain.gain.value = this.sound && !this.paused ? 1 : 0;                       // PT4-4: sounds are silent too while paused (the rewarded ad)
       this.applyMusic();
     },
     // scene: 'lobby' (loading, World Select, Level Pick, Settings, World Guide) plays the lobby track; 'game' (a level) plays the ambient loop
     scene: 'lobby', paused: false,
     setScene: function (s) { if (s === this.scene) return; this.scene = s; this.applyMusic(); },
-    setPaused: function (on) { on = !!on; if (on === this.paused) return; this.paused = on; this.applyMusic(); },          // e.g. while an ad plays
+    setPaused: function (on) { on = !!on; if (on === this.paused) return; this.paused = on; if (this.ctx && this.started) this.applySettings(); else this.applyMusic(); },          // e.g. while an ad plays (music and sounds)
     applyMusic: function () {
       var hidden = !!(g.document && g.document.hidden);
       if (!this.started || !this.music || hidden || this.paused) { this.pauseLobby(); this.stopMusic(); return; }

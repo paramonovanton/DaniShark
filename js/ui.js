@@ -87,7 +87,7 @@
   };
 
   P.build = function () {
-    var self = this, game = this.game, W = this.W, ids = ['loading', 'select', 'locked', 'pick', 'settings', 'hud', 'hint', 'event', 'start', 'pause', 'evo', 'complete', 'fail', 'world', 'rotate', 'guide'], i;
+    var self = this, game = this.game, W = this.W, ids = ['loading', 'select', 'locked', 'pick', 'settings', 'hud', 'hint', 'event', 'start', 'pause', 'evo', 'complete', 'fail', 'world', 'rotate', 'guide', 'continue', 'ad'], i;
     ids.forEach(function (k) { W[k] = document.getElementById('w-' + k); });
     this.tpl = {};
     Array.prototype.forEach.call(document.querySelectorAll('template[data-component]'), function (t) { self.tpl[t.getAttribute('data-component') + '|' + t.getAttribute('data-variant')] = t; });
@@ -171,6 +171,19 @@
     one(W.fail, 'Retry Button').addEventListener('click', function () { self.click(); game.replayLevel(); });
     one(W.fail, 'Home Button').addEventListener('click', function () { self.click(); game.goHome(); });
     one(W.world, 'Continue Button').addEventListener('click', function () { self.click(); game.worldCompleteContinue(); });
+
+    // PT4-4 Continue offer (T_Game_Continue) and the placeholder rewarded ad (T_Game_AdPlaceholder); every action is a Game method (it checks the limits and locks)
+    var cw = W['continue'], aw = W.ad;
+    this.C = { panel: one(cw, 'Panel'), formIcon: one(cw, 'Panel/Form Icon/Form Portrait'), formName: one(cw, 'Panel/Form Name'), hearts: one(cw, 'Panel/Hearts Text'), progress: one(cw, 'Panel/Progress Text'),
+      track: one(cw, 'Panel/Form Track'), adBtn: one(cw, 'Panel/Ad Offer/Ad Button'), coinBtn: one(cw, 'Panel/Coin Offer/Coin Button'), balance: one(cw, 'Panel/Coin Offer/Coin Balance/Balance Text'),
+      noThanks: one(cw, 'Panel/No Thanks Button'), toast: one(cw, 'Panel/Ad Toast'), toastText: one(cw, 'Panel/Ad Toast/Toast Text') };
+    [this.C.adBtn, this.C.coinBtn].forEach(function (b) { if (b) { b.setAttribute('role', 'button'); b.setAttribute('tabindex', '-1'); } });
+    this.C.adBtn.addEventListener('click', function () { if (self.C.adBtn.getAttribute('aria-disabled') === 'true') return; self.click(); game.continueAd(); });
+    this.C.coinBtn.addEventListener('click', function () { if (self.C.coinBtn.getAttribute('aria-disabled') === 'true') return; self.click(); game.continueCoins(); });
+    this.C.noThanks.addEventListener('click', function () { self.click(); game.continueDecline('button'); });
+    this.A = { ring: one(aw, 'Countdown Ring'), number: one(aw, 'Countdown Ring/Number'), countdown: one(aw, 'Countdown Text'), placement: one(aw, 'Placement Text'), close: one(aw, 'Close Button') };
+    this.A.close.addEventListener('click', function () { game.adClose(); });
+    this.A.close.setAttribute('aria-label', T('oe_ad_test_close')); this.A.close.setAttribute('title', T('oe_ad_test_close'));
 
     // PT2-5 World Guide: Close Button, a tap outside the Panel (Scrim) closes it (TR-OE-74..76; Esc / back go through game.back)
     var gw = W.guide;
@@ -377,6 +390,10 @@
     setOn(W.complete, inGame && phase === 'complete');
     setOn(W.fail, inGame && phase === 'fail');
     setOn(W.world, inGame && phase === 'worldcomplete');
+    var adOn = inGame && phase === 'continue' && !!(OE.Ads && OE.Ads.showing());
+    setOn(W['continue'], inGame && phase === 'continue' && !adOn);                          // the opaque test ad covers the offer and the HUD: they are not shown under it (iOS memory: their pictures are not held)
+    if (adOn) setOn(W.hud, false);
+    setOn(W.ad, adOn);
     setOn(W.rotate, !!game.rotate);
     this.syncBrowser();
     setAttr(this.stage, 'data-current-screen', top.screen); setAttr(this.stage, 'data-current-state', top.state);   // not data-screen: that name belongs to the windows
@@ -680,6 +697,7 @@
       case 'play': if (r.evoLightT > 0 || r.krakenT > 0) this.syncEvo(r); break;
       case 'complete': this.syncComplete(r); break;
       case 'fail': this.syncFail(r); break;
+      case 'continue': this.syncContinue(r); if (OE.Ads && OE.Ads.showing()) this.syncAd(); break;
       case 'worldcomplete': this.syncWorld(r); break;
       default: break;
     }
@@ -830,6 +848,45 @@
     show(one(W, 'Kept Coins Note'), this.game.sim.coins > 0);
     var hs = one(W, 'Hearts').querySelectorAll('[data-layer^="Heart "]');
     for (var i = 0; i < hs.length; i++) setSprite(hs[i], 'SPR_UI_Icn_Cmn_HeartEmpty');
+  };
+  /* PT4-4 (R-OE-67): the Continue offer. States by data-state (Default / AdUnavailable / NotEnoughCoins / CoinsUsed: offers shown / hidden, Not Enough Text);
+     the offer buttons swap CMP_Game_OfferButton variants (Ad: Default / Loading while the ad loads; Coins: Default / Disabled with the price), No Thanks
+     is CMP_Cmn_Btn Color=Low (Locked while an ad loads or plays); the Ad Toast shows for BAL.CONTINUE.toastS after a skipped / failed ad */
+  function setDisabled(el, on) { if (!el) return; setAttr(el, 'aria-disabled', on ? 'true' : 'false'); el.classList.toggle('is-disabled', !!on); if (el.tagName === 'BUTTON') el.disabled = !!on; }
+  P.syncContinue = function (r) {
+    var game = this.game, s = game.sim, sv = game.save, C = this.C, B = BAL.CONTINUE, o = game.continueOptions(), busy = r.contBusy, exit = r.contExitT > 0, j, self = this;
+    this.state(this.W['continue'], r.contState || 'Default');
+    var key = [r.cont.offered, r.contState, busy, sv.coins, s.form, Math.round(s.levelGP), r.contToast ? r.contToast.key : '', exit, o.ad, o.coins, this.fitGen || 0].join('|');
+    if (this.last.cont === key) return;
+    this.last.cont = key;
+    if (C.formIcon && C.formIcon.tagName === 'CANVAS' && this.last.contForm !== r.cont.offered + ':' + s.form) { Art.icon(C.formIcon, s.form); this.last.contForm = r.cont.offered + ':' + s.form; }
+    this.fitText(C.formName, T('oe_form_name_' + s.form), { min: BAL.UI_FIT.hudMinPx });
+    for (j = 1; j <= 8; j++) {
+      var inst = one(C.track, 'Form ' + j), st = j < s.form ? 'Reached' : (j === s.form ? 'Current' : 'Next');
+      if (inst && this.variant(inst, 'State=' + st + ', Goal=' + (j === 8 ? 'Yes' : 'No'))) { var pc = one(inst, 'Form Portrait'); if (pc && pc.tagName === 'CANVAS') Art.icon(pc, j); }
+    }
+    setText(C.hearts, T('oe_continue_hearts', B.hearts));
+    setText(C.progress, T('oe_continue_progress', Math.round(Math.min(s.levelGP, B.progressGP) / B.progressGP * 100)));
+    this.variant(C.adBtn, busy === 'ad' ? 'Kind=Ad, State=Loading' : 'Kind=Ad, State=Default');
+    setText(one(C.adBtn, 'Label'), T(busy === 'ad' ? 'oe_continue_ad_loading' : 'oe_continue_ad'));
+    setDisabled(C.adBtn, !o.ad || !!busy || exit);
+    var coinOn = o.coins && !busy && !exit;
+    this.variant(C.coinBtn, o.coins ? 'Kind=Coins, State=Default' : 'Kind=Coins, State=Disabled');
+    setText(one(C.coinBtn, 'Label'), T('oe_continue_coins')); setText(one(C.coinBtn, 'Price'), String(B.priceCoins));
+    setDisabled(C.coinBtn, !coinOn);
+    setText(C.balance, T('oe_continue_balance', sv.coins));
+    this.variant(C.noThanks, busy || exit ? 'Color=Low, State=Locked' : 'Color=Low, State=Common');
+    setDisabled(C.noThanks, !!busy || exit);
+    show(C.toast, !!r.contToast);
+    if (r.contToast) setText(C.toastText, T(r.contToast.key));
+  };
+  // the placeholder rewarded ad: Countdown (ring = time left, number, "Reward in n") / Complete ("Reward earned!", Close at full opacity)
+  P.syncAd = function () {
+    var A = this.A, info = OE.Ads.info(), left = Math.max(0, info.remainingS || 0), n = Math.ceil(left - 1e-6);
+    this.state(this.W.ad, info.state === 'Complete' ? 'Complete' : 'Countdown');
+    A.ring.style.setProperty('--oe-ad-fill', (info.dur > 0 ? left / info.dur : 0).toFixed(4));
+    setText(A.number, String(n)); setText(A.countdown, T('oe_ad_test_countdown', n));
+    setText(A.placement, T('oe_ad_test_placement', info.placement || BAL.ADS.placements['continue']));
   };
   P.syncWorld = function (r) {
     if (this.last.world === r.result) return; this.last.world = r.result;

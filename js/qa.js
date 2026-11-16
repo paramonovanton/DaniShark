@@ -198,6 +198,21 @@
         };
         return true;
       },
+      /* ---- spec v5.6 (PT4-4) hooks: the Continue offer and the rewarded ad ---- */
+      // the player loses the last heart now (cause 'qa') and the normal flow runs: the 0.8 s sink, then T_Game_Continue or T_Game_Fail (R-OE-66)
+      continueOffer: function () { var s = sim(); if (!s || game.mode !== 'game' || game.run.phase !== 'play') return false; s.hearts = 1; s.player.invuln = 0; s.setHearts(0); game.drainSim(); frame(); return true; },
+      // mark the ad / coin continue of this attempt as used (count follows); an open window refreshes its state
+      setContinueUsed: function (ad, coins) { var r = game.run; if (!r) return false; r.cont.adUsed = !!ad; r.cont.coinsUsed = !!coins; r.cont.count = (ad ? 1 : 0) + (coins ? 1 : 0); game.refreshContinue(); frame(); return game.continueInfo(); },
+      // the coin balance (saved at once)
+      setCoins: function (n) { game.save.coins = Math.max(0, Math.round(+n || 0)); game.commit(); game.refreshContinue(); game.changed(); frame(); return game.save.coins; },
+      // the next placeholder result: 'rewarded' | 'skipped' | 'failed' (+ reason 'no_fill' | 'error' | 'offline') | 'timeout' (never starts) | 'unavailable' (isReady false until reset) | null (normal)
+      forceAd: function (result, reason) { var ph = OE.Ads.placeholder; ph.force = result ? { result: result, reason: reason || null } : null; game.refreshContinue(); frame(); return true; },
+      adState: function () {
+        var i = OE.Ads.info(), ph = OE.Ads.placeholder, r = game.run;
+        return { provider: OE.Ads.providerId(), placement: OE.BAL.ADS.placements['continue'], ready: OE.Ads.isReady(OE.BAL.ADS.placements['continue']), requested: !!OE.Ads.req, showing: !!i.showing, state: i.state,
+          remainingS: i.remainingS, lastResult: OE.Ads.lastResult, fails: r ? r.cont.fails : 0, forced: ph.force ? ph.force.result : null };
+      },
+      adClose: function () { var ok = game.adClose(); frame(); return ok; },
       analyticsLog: function () { return OE.Analytics.buffer.slice(); },
       triggerEvent: function (id) { var s = sim(); if (!s) return false; var ok = s.startEvent(id, true); game.drainSim(); frame(); return ok; },
       setVisibility: function (v) { game.setVisibility(v); frame(); return true; },

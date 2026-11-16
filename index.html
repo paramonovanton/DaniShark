@@ -1065,6 +1065,136 @@
       </div>
     </section>
 
+  <!-- ============ T_Game_Continue ============ -->
+    <section class="win win-popup win-continue" id="w-continue" data-screen="T_Game_Continue" data-state="Default" data-layer="T_Game_Continue">
+      <div class="k-image" data-layer="Scrim" data-name="Scrim" data-sprite="SPR_UI_Cmt_Cmn_Fill" data-tint="#03121f" style="position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; opacity: 0.62; background-color: #03121f"></div>
+      <div class="safe" data-safe="1">
+        <div class="k-container" data-layer="Panel" data-oe="continue-panel" data-name="Panel" style="position: absolute; left: calc(50% + -620px); width: 1240px; top: calc(50% + -450px); height: 900px">
+          <div class="k-instance" data-layer="Popup" data-name="Popup" data-component="PAT_Cmn_Popup" style="position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px">
+            <div class="k-image" data-layer="Body" data-name="Body" data-sprite="SPR_UI_Cmt_Cmn_Popup" style="position: absolute; left: 0px; right: 0px; top: 70px; bottom: 0px; border-style: solid; border-width: 64px 64px 64px 64px; border-image: var(--spr-SPR_UI_Cmt_Cmn_Popup) 128 128 128 128 fill stretch; box-sizing: border-box"></div>
+            <div class="k-image" data-layer="Header" data-name="Header" data-sprite="SPR_UI_Cmt_Cmn_Popup_Header" style="position: absolute; left: calc(50% + -300px); width: 600px; top: 0px; height: 150px; border-style: solid; border-width: 0px 80px 0px 80px; border-image: var(--spr-SPR_UI_Cmt_Cmn_Popup_Header) 0 160 0 160 fill stretch; box-sizing: border-box"></div>
+            <button class="k-button" data-layer="Close Button" data-name="Close Button" hidden type="button" data-component="CMP_Cmn_BtnRound" data-variant="State=Common" style="position: absolute; right: 19px; width: 121px; top: 20px; height: 121px">
+              <div class="k-image" data-layer="Base" data-name="Base" data-sprite="SPR_UI_Btn_Cmn_Round" data-tint="#f2545b" style="isolation: isolate; position: absolute; left: 0.0000%; width: 100.0000%; top: 0.0000%; height: 100.0000%; background-color: #f2545b; -webkit-mask: var(--spr-SPR_UI_Btn_Cmn_Round) center / 100% 100% no-repeat; mask: var(--spr-SPR_UI_Btn_Cmn_Round) center / 100% 100% no-repeat">
+                <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-image: var(--spr-SPR_UI_Btn_Cmn_Round); background-size: 100% 100%; background-repeat: no-repeat; background-position: center; mix-blend-mode: multiply"></i>
+              </div>
+              <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_Close" style="position: absolute; left: calc(50% + -35.5px); width: 72px; top: calc(50% + -35.5px); height: 72px; background-image: var(--spr-SPR_UI_Icn_Cmn_Close); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </button>
+          </div>
+          <div class="k-text" data-layer="Title" data-name="Title" style="position: absolute; left: calc(50% + -300px); width: 600px; top: 18px; height: 108px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 80px; line-height: 105%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-loc="oe_continue_title">
+            <span class="t">Don't give up!</span>
+          </div>
+          <div class="k-instance" data-layer="Form Icon" data-name="Form Icon" data-component="CMP_Cmn_FormIcon" data-variant="State=Current, Goal=No" style="position: absolute; left: 90px; width: 280px; top: 92px; height: 255px">
+            <div class="k-image" data-layer="Highlight" data-name="Highlight" data-sprite="SPR_UI_Cmt_Cmn_Fill_Pill" data-tint="#ffd23f" style="position: absolute; left: 0px; width: 280px; top: 64px; height: 191px; opacity: 0.85; border-radius: 9999px; background-color: #ffd23f"></div>
+            <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_4" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 29.8039%; height: 68.6275%" width="320" height="200"></canvas>
+            <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" hidden data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 178px; width: 102px; top: 0px; height: 121px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+          </div>
+          <div class="k-text" data-layer="Form Name" data-name="Form Name" style="position: absolute; left: 30px; width: 400px; top: 350px; height: 52px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 44px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+            <span class="t">Large Shark</span>
+          </div>
+          <div class="k-instance" data-layer="Hearts Preview" data-name="Hearts Preview" data-component="CMP_Cmn_Hearts" data-variant="Count=3" style="position: absolute; right: 147px; width: 325px; top: 160px; height: 101px">
+            <div class="k-image" data-layer="Heart 1" data-name="Heart 1" data-sprite="SPR_UI_Icn_Cmn_HeartFull" style="position: absolute; left: 0px; width: 101px; top: calc(50% + -50.5px); height: 101px; background-image: var(--spr-SPR_UI_Icn_Cmn_HeartFull); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            <div class="k-image" data-layer="Heart 2" data-name="Heart 2" data-sprite="SPR_UI_Icn_Cmn_HeartFull" style="position: absolute; left: 112px; width: 101px; top: calc(50% + -50.5px); height: 101px; background-image: var(--spr-SPR_UI_Icn_Cmn_HeartFull); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            <div class="k-image" data-layer="Heart 3" data-name="Heart 3" data-sprite="SPR_UI_Icn_Cmn_HeartFull" style="position: absolute; left: 224px; width: 101px; top: calc(50% + -50.5px); height: 101px; background-image: var(--spr-SPR_UI_Icn_Cmn_HeartFull); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+          </div>
+          <div class="k-text" data-layer="Hearts Text" data-name="Hearts Text" style="position: absolute; right: 20px; width: 580px; top: 268px; height: 52px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 44px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+            <span class="t">Continue with 3 hearts</span>
+          </div>
+          <div class="k-text" data-layer="Star Note" data-name="Star Note" style="position: absolute; right: 20px; width: 580px; top: 322px; height: 76px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 32px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #cfe9ff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-loc="oe_continue_star_note">
+            <span class="t">Finishing after a continue gives 1 star</span>
+          </div>
+          <div class="k-instance" data-layer="Form Track" data-name="Form Track" data-component="PAT_Cmn_FormTrack" style="position: absolute; left: calc(50% + -367px); width: 734px; top: 410px; height: 72px">
+            <div class="k-instance" data-layer="Form 1" data-name="Form 1" data-component="CMP_Cmn_FormIcon" data-variant="State=Reached, Goal=No" style="position: absolute; left: calc(50% + -367px); width: 79px; top: calc(50% + -36px); height: 72px">
+              <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_1" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 30.5556%; height: 69.4444%" width="320" height="200"></canvas>
+              <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" hidden data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 50px; width: 29px; top: 0px; height: 34px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </div>
+            <div class="k-instance" data-layer="Form 2" data-name="Form 2" data-component="CMP_Cmn_FormIcon" data-variant="State=Reached, Goal=No" style="position: absolute; left: calc(50% + -274px); width: 79px; top: calc(50% + -36px); height: 72px">
+              <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_2" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 30.5556%; height: 69.4444%" width="320" height="200"></canvas>
+              <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" hidden data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 50px; width: 29px; top: 0px; height: 34px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </div>
+            <div class="k-instance" data-layer="Form 3" data-name="Form 3" data-component="CMP_Cmn_FormIcon" data-variant="State=Reached, Goal=No" style="position: absolute; left: calc(50% + -180px); width: 79px; top: calc(50% + -36px); height: 72px">
+              <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_3" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 30.5556%; height: 69.4444%" width="320" height="200"></canvas>
+              <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" hidden data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 50px; width: 29px; top: 0px; height: 34px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </div>
+            <div class="k-instance" data-layer="Form 4" data-name="Form 4" data-component="CMP_Cmn_FormIcon" data-variant="State=Current, Goal=No" style="position: absolute; left: calc(50% + -86px); width: 79px; top: calc(50% + -36px); height: 72px">
+              <div class="k-image" data-layer="Highlight" data-name="Highlight" data-sprite="SPR_UI_Cmt_Cmn_Fill_Pill" data-tint="#ffd23f" style="position: absolute; left: 0px; width: 79px; top: 18px; height: 54px; opacity: 0.85; border-radius: 9999px; background-color: #ffd23f"></div>
+              <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_4" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 30.5556%; height: 69.4444%" width="320" height="200"></canvas>
+              <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" hidden data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 50px; width: 29px; top: 0px; height: 34px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </div>
+            <div class="k-instance" data-layer="Form 5" data-name="Form 5" data-component="CMP_Cmn_FormIcon" data-variant="State=Next, Goal=No" style="position: absolute; left: calc(50% + 7px); width: 79px; top: calc(50% + -36px); height: 72px">
+              <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_5" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 30.5556%; height: 69.4444%; opacity: 0.75" width="320" height="200"></canvas>
+              <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" hidden data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 50px; width: 29px; top: 0px; height: 34px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </div>
+            <div class="k-instance" data-layer="Form 6" data-name="Form 6" data-component="CMP_Cmn_FormIcon" data-variant="State=Next, Goal=No" style="position: absolute; left: calc(50% + 101px); width: 79px; top: calc(50% + -36px); height: 72px">
+              <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_6" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 30.5556%; height: 69.4444%; opacity: 0.75" width="320" height="200"></canvas>
+              <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" hidden data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 50px; width: 29px; top: 0px; height: 34px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </div>
+            <div class="k-instance" data-layer="Form 7" data-name="Form 7" data-component="CMP_Cmn_FormIcon" data-variant="State=Next, Goal=No" style="position: absolute; left: calc(50% + 194px); width: 79px; top: calc(50% + -36px); height: 72px">
+              <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_7" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 30.5556%; height: 69.4444%; opacity: 0.75" width="320" height="200"></canvas>
+              <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" hidden data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 50px; width: 29px; top: 0px; height: 34px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </div>
+            <div class="k-instance" data-layer="Form 8" data-name="Form 8" data-component="CMP_Cmn_FormIcon" data-variant="State=Next, Goal=Yes" style="position: absolute; left: calc(50% + 288px); width: 79px; top: calc(50% + -36px); height: 72px">
+              <canvas class="game-canvas" data-layer="Form Portrait" data-name="Form Portrait" data-sprite="SPR_UI_Img_Cmn_Form_8" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 30.5556%; height: 69.4444%; opacity: 0.75" width="320" height="200"></canvas>
+              <div class="k-image" data-layer="Goal Flag" data-name="Goal Flag" data-sprite="SPR_UI_Icn_Cmn_GoalFlag" style="position: absolute; left: 50px; width: 29px; top: 0px; height: 34px; background-image: var(--spr-SPR_UI_Icn_Cmn_GoalFlag); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+            </div>
+          </div>
+          <div class="k-text" data-layer="Progress Text" data-name="Progress Text" style="position: absolute; left: 120px; right: 120px; top: 484px; height: 48px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 38px; line-height: 120%; font-family: 'Baloo 2', sans-serif; font-weight: 600; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+            <span class="t">43% of the way to Kraken</span>
+          </div>
+          <div class="k-container" data-layer="Ad Offer" data-oe="continue-ad" data-name="Ad Offer" style="position: absolute; left: calc(50% + -510px); width: 480px; top: 542px; height: 140px" data-hide="AdUnavailable" data-style-base="position: absolute; left: calc(50% + -510px); width: 480px; top: 542px; height: 140px" data-style-CoinsUsed="position: absolute; left: calc(50% + -240px); width: 480px; top: 542px; height: 140px">
+            <div class="k-instance" data-layer="Ad Button" data-name="Ad Button" data-component="CMP_Game_OfferButton" data-variant="Kind=Ad, State=Default" style="position: absolute; left: calc(50% + -240px); width: 480px; top: 0px; height: 140px; overflow: hidden">
+              <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#3dcb6c" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #3dcb6c; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+                <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+              </div>
+              <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_AdVideo" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_AdVideo); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+              <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 22px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+                <span class="t">Watch an ad</span>
+              </div>
+              <div class="k-text" data-layer="Price" data-name="Price" hidden style="position: absolute; right: 22px; width: 118px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+                <span class="t"></span>
+              </div>
+            </div>
+          </div>
+          <div class="k-container" data-layer="Coin Offer" data-oe="continue-coin" data-name="Coin Offer" style="position: absolute; left: calc(50% + 30px); width: 480px; top: 542px; height: 206px" data-style-base="position: absolute; left: calc(50% + 30px); width: 480px; top: 542px; height: 206px" data-style-AdUnavailable="position: absolute; left: calc(50% + -240px); width: 480px; top: 542px; height: 206px" data-hide="CoinsUsed">
+            <div class="k-instance" data-layer="Coin Button" data-name="Coin Button" data-component="CMP_Game_OfferButton" data-variant="Kind=Coins, State=Default" style="position: absolute; left: calc(50% + -240px); width: 480px; top: 0px; height: 140px; overflow: hidden">
+              <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#ff9f1c" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #ff9f1c; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+                <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+              </div>
+              <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_Coin" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_Coin); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+              <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 132px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-start; text-align: left; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+                <span class="t">Continue</span>
+              </div>
+              <div class="k-text" data-layer="Price" data-name="Price" style="position: absolute; right: 24px; width: 116px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffd23f; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+                <span class="t">300</span>
+              </div>
+            </div>
+            <div class="k-container" data-layer="Coin Balance" data-name="Coin Balance" style="position: absolute; left: calc(50% + -240px); width: 480px; top: 140px; height: 38px; overflow: hidden">
+              <div class="k-image" data-layer="Coin Icon" data-name="Coin Icon" data-sprite="SPR_UI_Icn_Cmn_Coin" style="position: absolute; left: calc(50% + -106px); width: 36px; top: calc(50% + -18px); height: 36px; background-image: var(--spr-SPR_UI_Icn_Cmn_Coin); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+              <div class="k-text" data-layer="Balance Text" data-name="Balance Text" style="position: absolute; left: calc(50% + -64px); width: 240px; top: calc(50% + -19px); height: 38px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-start; text-align: left; font-size: 32px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+                <span class="t">You have 500</span>
+              </div>
+            </div>
+            <div class="k-text" data-layer="Not Enough Text" data-name="Not Enough Text" hidden style="position: absolute; left: calc(50% + -240px); width: 480px; top: 172px; height: 34px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 32px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #ff5a5f; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-show="NotEnoughCoins" data-loc="oe_continue_not_enough">
+              <span class="t">Not enough coins</span>
+            </div>
+          </div>
+          <button class="k-button" data-layer="No Thanks Button" data-name="No Thanks Button" type="button" data-component="CMP_Cmn_Btn" data-variant="Color=Low, State=Common" style="position: absolute; left: calc(50% + -180px); width: 360px; top: 762px; height: 121px">
+            <div class="k-image" data-layer="Base" data-name="Base" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#1c4466" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #1c4466; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+              <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+            </div>
+            <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 24px; right: 24px; top: calc(50% + -49.5px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-loc="oe_continue_no_thanks">
+              <span class="t">No thanks</span>
+            </div>
+          </button>
+          <div class="k-container" data-layer="Ad Toast" data-oe="continue-toast" data-name="Ad Toast" hidden style="position: absolute; left: calc(50% + -380px); width: 760px; top: 456px; height: 72px; overflow: hidden">
+            <div class="k-image" data-layer="Plate" data-name="Plate" data-sprite="SPR_UI_Cmt_Cmn_Fill_Pill" data-tint="#03121f" style="position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; opacity: 0.88; border-radius: 9999px; background-color: #03121f"></div>
+            <div class="k-text" data-layer="Toast Text" data-name="Toast Text" style="position: absolute; left: 20px; right: 20px; top: calc(50% + -36px); height: 72px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 32px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+              <span class="t">Watch to the end to continue</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   <!-- ============ T_Game_WorldComplete ============ -->
     <section class="win win-full win-wc" id="w-world" data-screen="T_Game_WorldComplete" data-state="Default" data-layer="T_Game_WorldComplete">
       <div class="k-image" data-layer="Dim" data-name="Dim" data-sprite="SPR_UI_Cmt_Cmn_Fill" data-tint="#03121f" style="position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; opacity: 0.78; background-color: #03121f"></div>
@@ -1182,6 +1312,52 @@
       </div>
     </section>
 
+  <!-- ============ T_Game_AdPlaceholder ============ -->
+    <section class="win win-full win-ad" id="w-ad" data-screen="T_Game_AdPlaceholder" data-state="Countdown" data-layer="T_Game_AdPlaceholder">
+      <div class="k-image" data-layer="Background" data-name="Background" data-sprite="SPR_UI_Cmt_Cmn_Fill" data-tint="#03121f" style="position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #03121f"></div>
+      <div class="safe" data-safe="1">
+        <div class="k-text" data-layer="Ad Title" data-name="Ad Title" style="position: absolute; left: calc(50% + -560px); width: 1120px; top: calc(50% + -414px); height: 84px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 60px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-loc="oe_ad_test_title">
+          <span class="t">Test ad</span>
+        </div>
+      </div>
+      <div class="safe" data-safe="1">
+        <div class="k-image" data-layer="Ad Frame" data-name="Ad Frame" data-sprite="SPR_UI_Img_Game_AdPlaceholder" style="position: absolute; left: calc(50% + -560px); width: 1120px; top: calc(50% + -315px); height: 630px; background-image: var(--spr-SPR_UI_Img_Game_AdPlaceholder); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+      </div>
+      <div class="safe" data-safe="1">
+        <div class="k-text" data-layer="Placement Text" data-name="Placement Text" style="position: absolute; left: calc(50% + -560px); width: 1120px; top: calc(50% + 326px); height: 40px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 32px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #cfe9ff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+          <span class="t">Placement: continue_last_heart</span>
+        </div>
+      </div>
+      <div class="safe" data-safe="1">
+        <div class="k-text" data-layer="Countdown Text" data-name="Countdown Text" style="position: absolute; left: calc(50% + -400px); width: 800px; top: calc(50% + 372px); height: 60px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 44px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-hide="Complete">
+          <span class="t">Reward in 3</span>
+        </div>
+      </div>
+      <div class="safe" data-safe="1">
+        <div class="k-text" data-layer="Reward Text" data-name="Reward Text" hidden style="position: absolute; left: calc(50% + -400px); width: 800px; top: calc(50% + 372px); height: 60px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 44px; line-height: 115%; font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #ffd23f; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-show="Complete" data-loc="oe_ad_test_done">
+          <span class="t">Reward earned!</span>
+        </div>
+      </div>
+      <div class="safe" data-safe="1">
+        <div class="k-container" data-layer="Countdown Ring" data-oe="ad-ring" data-name="Countdown Ring" style="position: absolute; left: 96px; width: 160px; top: 32px; height: 160px; overflow: hidden">
+          <div class="k-image" data-layer="Ring" data-name="Ring" data-sprite="SPR_UI_Cmt_Game_TimerRing" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 0.0000%; height: 100.0000%; background-image: var(--spr-SPR_UI_Cmt_Game_TimerRing); background-size: 100% 100%; background-repeat: no-repeat; background-position: center"></div>
+          <div class="k-image" data-layer="Arc" data-oe="ad-arc" data-name="Arc" data-sprite="SPR_UI_Cmt_Game_TimerArc" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 0.0000%; height: 100.0000%; background-image: var(--spr-SPR_UI_Cmt_Game_TimerArc); background-size: 100% 100%; background-repeat: no-repeat; background-position: center"></div>
+          <div class="k-text" data-layer="Number" data-name="Number" style="position: absolute; left: calc(50% + -60px); width: 120px; top: calc(50% + -54px); height: 108px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 80px; line-height: 105%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-hide="Complete">
+            <span class="t">3</span>
+          </div>
+          <div class="k-image" data-layer="Done Icon" data-name="Done Icon" hidden data-sprite="SPR_UI_Icn_Cmn_Check" style="position: absolute; left: calc(50% + -44px); width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_Check); background-size: contain; background-repeat: no-repeat; background-position: center" data-show="Complete"></div>
+        </div>
+      </div>
+      <div class="safe" data-safe="1">
+        <button class="k-button" data-layer="Close Button" data-oe="ad-close" data-name="Close Button" type="button" data-component="CMP_Cmn_BtnRound" data-variant="State=Common" style="position: absolute; right: 96px; width: 121px; top: 32px; height: 121px; opacity: 0.6">
+          <div class="k-image" data-layer="Base" data-name="Base" data-sprite="SPR_UI_Btn_Cmn_Round" data-tint="#f2545b" style="isolation: isolate; position: absolute; left: 0.0000%; width: 100.0000%; top: 0.0000%; height: 100.0000%; background-color: #f2545b; -webkit-mask: var(--spr-SPR_UI_Btn_Cmn_Round) center / 100% 100% no-repeat; mask: var(--spr-SPR_UI_Btn_Cmn_Round) center / 100% 100% no-repeat">
+            <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-image: var(--spr-SPR_UI_Btn_Cmn_Round); background-size: 100% 100%; background-repeat: no-repeat; background-position: center; mix-blend-mode: multiply"></i>
+          </div>
+          <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_Close" style="position: absolute; left: calc(50% + -35.5px); width: 72px; top: calc(50% + -35.5px); height: 72px; background-image: var(--spr-SPR_UI_Icn_Cmn_Close); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+        </button>
+      </div>
+    </section>
+
   <!-- ============ T_Main_Rotate ============ -->
     <section class="win win-rotate" id="w-rotate" data-screen="T_Main_Rotate" data-state="Default" data-layer="T_Main_Rotate" data-min-w="480">
       <div class="k-image" data-layer="Background" data-name="Background" data-sprite="SPR_UI_Cmt_Cmn_Fill" data-tint="#0b2a47" style="position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #0b2a47"></div>
@@ -1253,6 +1429,22 @@
 </div>
 
 <!-- component variants that js/ui.js swaps in (toggles, stars, hearts, pips, dots, cards, chips...), taken from ui/generated/components.html -->
+  <template data-component="CMP_Cmn_Btn" data-variant="Color=Low, State=Common" data-w="440" data-h="121">
+    <div class="k-image" data-layer="Base" data-name="Base" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#1c4466" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #1c4466; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 24px; right: 24px; top: calc(50% + -49.5px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-loc="oe_continue_no_thanks">
+      <span class="t">No thanks</span>
+    </div>
+  </template>
+  <template data-component="CMP_Cmn_Btn" data-variant="Color=Low, State=Locked" data-w="440" data-h="121">
+    <div class="k-image" data-layer="Base" data-name="Base" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#9aa8b3" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #9aa8b3; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 24px; right: 24px; top: calc(50% + -49.5px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)" data-loc="oe_continue_no_thanks">
+      <span class="t">No thanks</span>
+    </div>
+  </template>
   <template data-component="CMP_Cmn_BtnFullscreen" data-variant="Mode=Off" data-w="121" data-h="121">
     <button class="k-button" data-layer="Button" data-name="Button" type="button" data-component="CMP_Cmn_BtnRound" data-variant="State=Common" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 0.0000%; height: 100.0000%">
       <div class="k-image" data-layer="Base" data-name="Base" data-sprite="SPR_UI_Btn_Cmn_Round" data-tint="#2f9bf0" style="isolation: isolate; position: absolute; left: 0.0000%; width: 100.0000%; top: 0.0000%; height: 100.0000%; background-color: #2f9bf0; -webkit-mask: var(--spr-SPR_UI_Btn_Cmn_Round) center / 100% 100% no-repeat; mask: var(--spr-SPR_UI_Btn_Cmn_Round) center / 100% 100% no-repeat">
@@ -1392,6 +1584,104 @@
   </template>
   <template data-component="CMP_Game_JumpIndicator" data-variant="State=Cooldown" data-w="160" data-h="160">
     <div class="k-image" data-layer="Ring" data-name="Ring" data-sprite="SPR_UI_Icn_Game_JumpRing" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 0.0000%; height: 100.0000%; opacity: 0.35; background-image: var(--spr-SPR_UI_Icn_Game_JumpRing); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+  </template>
+  <template data-component="CMP_Game_OfferButton" data-variant="Kind=Ad, State=Default" data-w="480" data-h="140">
+    <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#3dcb6c" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #3dcb6c; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_AdVideo" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_AdVideo); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 22px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">Watch an ad</span>
+    </div>
+    <div class="k-text" data-layer="Price" data-name="Price" hidden style="position: absolute; right: 22px; width: 118px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t"></span>
+    </div>
+  </template>
+  <template data-component="CMP_Game_OfferButton" data-variant="Kind=Ad, State=Pressed" data-w="480" data-h="140">
+    <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#3dcb6c" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #3dcb6c; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-shape" data-layer="State FX" data-name="State FX" style="position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-image: linear-gradient(#00000038, #00000038); background-size: 100% 100%; background-repeat: no-repeat; background-position: 0 0; border-radius: 36px"></div>
+    <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_AdVideo" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_AdVideo); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 22px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">Watch an ad</span>
+    </div>
+    <div class="k-text" data-layer="Price" data-name="Price" hidden style="position: absolute; right: 22px; width: 118px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t"></span>
+    </div>
+  </template>
+  <template data-component="CMP_Game_OfferButton" data-variant="Kind=Ad, State=Disabled" data-w="480" data-h="140">
+    <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#9aa8b3" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #9aa8b3; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_AdVideo" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_AdVideo); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 22px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">Watch an ad</span>
+    </div>
+    <div class="k-text" data-layer="Price" data-name="Price" hidden style="position: absolute; right: 22px; width: 118px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t"></span>
+    </div>
+  </template>
+  <template data-component="CMP_Game_OfferButton" data-variant="Kind=Ad, State=Loading" data-w="480" data-h="140">
+    <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#3dcb6c" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #3dcb6c; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_Spinner" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_Spinner); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 22px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: center; text-align: center; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">Loading...</span>
+    </div>
+    <div class="k-text" data-layer="Price" data-name="Price" hidden style="position: absolute; right: 22px; width: 118px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t"></span>
+    </div>
+  </template>
+  <template data-component="CMP_Game_OfferButton" data-variant="Kind=Coins, State=Default" data-w="480" data-h="140">
+    <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#ff9f1c" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #ff9f1c; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_Coin" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_Coin); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 132px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-start; text-align: left; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">Continue</span>
+    </div>
+    <div class="k-text" data-layer="Price" data-name="Price" style="position: absolute; right: 24px; width: 116px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffd23f; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">300</span>
+    </div>
+  </template>
+  <template data-component="CMP_Game_OfferButton" data-variant="Kind=Coins, State=Pressed" data-w="480" data-h="140">
+    <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#ff9f1c" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #ff9f1c; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-shape" data-layer="State FX" data-name="State FX" style="position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-image: linear-gradient(#00000038, #00000038); background-size: 100% 100%; background-repeat: no-repeat; background-position: 0 0; border-radius: 36px"></div>
+    <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_Coin" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_Coin); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 132px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-start; text-align: left; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">Continue</span>
+    </div>
+    <div class="k-text" data-layer="Price" data-name="Price" style="position: absolute; right: 24px; width: 116px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffd23f; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">300</span>
+    </div>
+  </template>
+  <template data-component="CMP_Game_OfferButton" data-variant="Kind=Coins, State=Disabled" data-w="480" data-h="140">
+    <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#9aa8b3" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #9aa8b3; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_Coin" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_Coin); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 132px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-start; text-align: left; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">Continue</span>
+    </div>
+    <div class="k-text" data-layer="Price" data-name="Price" style="position: absolute; right: 24px; width: 116px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffd23f; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">300</span>
+    </div>
+  </template>
+  <template data-component="CMP_Game_OfferButton" data-variant="Kind=Coins, State=Loading" data-w="480" data-h="140">
+    <div class="k-image" data-layer="Bg" data-name="Bg" data-sprite="SPR_UI_Btn_Cmn_Base" data-tint="#ff9f1c" style="isolation: isolate; position: absolute; left: 0px; right: 0px; top: 0px; bottom: 0px; background-color: #ff9f1c; -webkit-mask-box-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch; mask-border: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill / 40px 44px 48px 44px stretch">
+      <i class="k-tint-art" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-style: solid; border-width: 40px 44px 48px 44px; border-image: var(--spr-SPR_UI_Btn_Cmn_Base) 80 88 96 88 fill stretch; box-sizing: border-box; mix-blend-mode: multiply"></i>
+    </div>
+    <div class="k-image" data-layer="Icon" data-name="Icon" data-sprite="SPR_UI_Icn_Cmn_Spinner" style="position: absolute; left: 30px; width: 88px; top: calc(50% + -44px); height: 88px; background-image: var(--spr-SPR_UI_Icn_Cmn_Spinner); background-size: contain; background-repeat: no-repeat; background-position: center"></div>
+    <div class="k-text" data-layer="Label" data-name="Label" style="position: absolute; left: 128px; right: 132px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-start; text-align: left; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">Loading...</span>
+    </div>
+    <div class="k-text" data-layer="Price" data-name="Price" style="position: absolute; right: 24px; width: 116px; top: calc(50% + -46px); height: 92px; display: flex; white-space: pre-wrap; overflow: hidden; align-items: center; justify-content: flex-end; text-align: right; font-size: 52px; line-height: 110%; font-family: 'Baloo 2', sans-serif; font-weight: 800; color: #ffd23f; text-shadow: 0px 5px 0px rgba(11, 42, 71, 0.9)">
+      <span class="t">300</span>
+    </div>
   </template>
   <template data-component="CMP_Game_ThreatMarker" data-variant="Kind=Threat, Direction=Right" data-w="72" data-h="72">
     <div class="k-image" data-layer="Arrow" data-name="Arrow" data-sprite="SPR_UI_Icn_Game_ThreatArrow" data-tint="#ff2e3c" style="position: absolute; left: 0.0000%; width: 100.0000%; top: 0.0000%; height: 100.0000%; background-color: #ff2e3c; -webkit-mask: var(--spr-SPR_UI_Icn_Game_ThreatArrow) center / contain no-repeat; mask: var(--spr-SPR_UI_Icn_Game_ThreatArrow) center / contain no-repeat"></div>
@@ -1848,6 +2138,7 @@
 <script src="js/sim_side.js"></script>
 <script src="js/sim_boss.js"></script>
 <script src="js/game.js"></script>
+<script src="js/ads.js"></script>
 <script src="js/assets.js"></script>
 <script src="js/art.js"></script>
 <script src="js/render.js"></script>

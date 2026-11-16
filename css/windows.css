@@ -167,3 +167,14 @@ html.tier-ios .stage .win-popup.on[data-screen="T_Main_WorldGuide"] [data-layer=
 html.tier-lite .stage .win-popup.on[data-screen="T_Main_WorldGuide"] [data-layer="Scrim"], html.tier-lite .stage .win-popup.on [data-oe="guide-panel"] { animation: none; }
 /* PT2-5: the Locked Ribbon (820 px in Figma Wide) would run under the Order Hint on narrower panels (1248 at 1440): it ends 16 px before the hint, the text shrinks to 26 px, then ellipsis */
 .stage [data-oe="guide-panel"] > [data-layer="Locked Ribbon"] { width: min(820px, calc(100% - 552px)) !important; }
+
+/* PT4-4 Continue offer (T_Game_Continue) + placeholder rewarded ad (T_Game_AdPlaceholder). Layout and state rules (panel width, centring of the remaining offer,
+   toast, spinner, ring fill) are in ui/generated/ui.css; here: stacking, the disabled offer look and the pop-in (none on the ios / lite tiers) */
+.stage #w-continue { z-index: 40; }
+.stage #w-ad { z-index: 180; }                       /* above every game window and the notice (150); the rotate prompt (200) stays on top */
+.stage .win-continue.on [data-oe="continue-panel"] { animation: guidein .2s ease-out; }
+.stage .win-continue [data-component="CMP_Game_OfferButton"] { cursor: pointer; }
+.stage .win-continue [data-component="CMP_Game_OfferButton"].is-disabled { cursor: default; }
+.stage .win-continue [data-component="CMP_Game_OfferButton"]:not(.is-disabled):active { filter: brightness(.9); transform: translateY(2px); }
+html.tier-ios .stage .win-continue.on [data-oe="continue-panel"], html.tier-lite .stage .win-continue.on [data-oe="continue-panel"] { animation: none; }
+@media (prefers-reduced-motion: reduce) { .stage .win-continue.on [data-oe="continue-panel"] { animation: none; } }
