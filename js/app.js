@@ -83,14 +83,14 @@
   OE.Assets.preload(OE.Assets.bootIds(1), function (p) { game.setLoadProgress(p); if (p >= 1 && !Br.bootT && !Br.bootCleared) Br.bootMark(10000); });     // BUG-U6: the crash guard's boot marker is cleared after 10 s of running
   game.on('change', function () { /* ui picks it up in sync() */ });
 
-  var ctxQA = { game: game, ui: ui, input: OE.Input, setViewport: setViewport, fit: fit, afterStep: function () { ui.sync(0); render.draw(16); } };
+  var ctxQA = { game: game, ui: ui, render: render, input: OE.Input, setViewport: setViewport, fit: fit, afterStep: function () { ui.sync(0); render.draw(16); } };
   if (qa) OE.installQA(ctxQA);
 
   var last = performance.now(), manual = qa && /[?&]manual=1/.test(g.location.search), errCount = 0, errAt = 0;
   // BUG-U3: one failing frame must never end the loop (a thrown error before requestAnimationFrame froze the game for good). The error is
   // logged, the loop keeps going; if frames keep failing (3 in a row) the level is dropped back to the main screen so the player is never stuck.
-  function loop(now) {
-    var dt = Math.min(100, now - last); last = now;
+  // one display frame: the game (fixed 60 Hz steps inside game.update), the windows, the arena
+  function frame(dt) {
     try {
       if (!manual) game.update(dt);
       ui.sync(dt / 1000);
@@ -102,8 +102,19 @@
       try { if (g.console) g.console.error('[frame error]', e); } catch (e2) { /* ignore */ }
       if (errCount === 3) { try { game.recover(); } catch (e3) { /* ignore */ } }
     }
+  }
+  // R15 (spec v5.6 qaHooks, ACCEPT.ROTATION): ?qa=1&fps=30|60|120 emulates the display rate. Frames run at a fixed 1000 / fps ms taken from the real
+  // elapsed time: 30 = every other browser frame (throttled), 120 = two frames per 60 Hz browser frame (doubled); the simulation stays at 60 Hz.
+  var fpsM = qa ? /[?&]fps=(30|60|120)(&|$)/.exec(g.location.search) : null, fpsEm = fpsM ? +fpsM[1] : 0, fpsAcc = 0;
+  function loop(now) {
+    var dt = Math.min(100, now - last); last = now;
+    if (fpsEm) {
+      var fd = 1000 / fpsEm, n = 0;
+      fpsAcc = Math.min(fpsAcc + dt, fd * 4);
+      while (fpsAcc >= fd - 1e-6 && n < 4) { fpsAcc -= fd; n++; frame(fd); }
+    } else frame(dt);
     g.requestAnimationFrame(loop);
   }
   g.requestAnimationFrame(loop);
-  OE.app = { game: game, ui: ui, render: render, fit: fit, provider: provider, loop: loop };
+  OE.app = { game: game, ui: ui, render: render, fit: fit, provider: provider, loop: loop, frame: frame, fps: fpsEm };
 })(typeof window !== 'undefined' ? window : globalThis);

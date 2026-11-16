@@ -501,7 +501,7 @@
   P.openContinue = function () {
     var r = this.run, s = this.sim, o = this.continueOptions(), b;
     if (!o.any) return false;                                                                   // nothing possible: Level Failed at once (orchestrator default: no window with only a disabled offer)
-    r.phase = 'continue'; r.contState = this.continueStateNow(); r.contBusy = null; r.contToast = null; r.contExitT = 0; r.cont.offered++;
+    r.phase = 'continue'; r.contState = this.continueStateNow(); r.contBusy = null; r.contToast = null; r.contExitT = 0; r.cont.offered++; r.contChoiceN = 0;
     this.evoFx = null; r.evoLightT = 0;                                                         // R-OE-73a: a running evolution FX completes at once (timeScale 1, zoom, flash 0, banner hidden), never replayed
     this.hint = null; this.banner = null;
     this.releasePointer();
@@ -517,7 +517,9 @@
     var st = this.continueStateNow();
     if (st !== r.contState) { r.contState = st; this.changed(); }
   };
-  P.contChosen = function (choice) { var b = this.contBase(); b.choice = choice; b.form = this.sim.form; b.continues_used = this.run.cont.count; this.track('ContinueChosen', b); };
+  // ContinueChosen is logged for every accepted tap (each tap is a choice: an ad closed early or failed can be tapped again); R15: attempt_choice_n = the number
+  // of this choice in the current offer (1 = the first tap, 2+ = a retry after a skipped / failed ad), so choices per ContinueOffered can be counted once
+  P.contChosen = function (choice) { var r = this.run, b = this.contBase(); r.contChoiceN = (r.contChoiceN || 0) + 1; b.choice = choice; b.form = this.sim.form; b.continues_used = r.cont.count; b.attempt_choice_n = r.contChoiceN; this.track('ContinueChosen', b); };
   P.contToastShow = function (key) { this.run.contToast = { key: key, t: BAL.CONTINUE.toastS }; this.changed(); };
   // Coin Button (R-OE-70): 300 coins at once, saved immediately; a tap on a disabled button does nothing; taps are locked after the first accepted one
   P.continueCoins = function () {

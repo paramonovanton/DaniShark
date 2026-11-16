@@ -317,8 +317,16 @@
       Art.drawShape(ctx, sp.shape, spec, o);
     },
     playerSpec: function (form) { return PLY[form]; },
+    // R15 (iOS memory): on the mobile tiers UI.fitCanvases sizes each UI canvas to what it shows and releases the canvases nobody sees (1 x 1);
+    // a draw wakes a released canvas first (its last fitted size, else its base size) and keeps __redraw so the canvas can be drawn again when it shows
+    wake: function (c) {
+      if (!c || !c.__rel) return;
+      c.width = c.__fw || c.__bw; c.height = c.__fh || c.__bh; c.__rel = false;
+    },
     // creature icon for UI chips (small canvas)
     icon: function (canvas, form) {
+      if (!canvas) return;
+      Art.wake(canvas); canvas.__redraw = function () { Art.icon(canvas, form); };
       var ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
       ctx.clearRect(0, 0, w, h); ctx.save(); ctx.translate(w / 2, h / 2);
       var L = Math.min(w * 0.82, h * 1.5);

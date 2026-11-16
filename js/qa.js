@@ -7,6 +7,7 @@
 
   OE.installQA = function (ctx) {
     var game = ctx.game, ui = ctx.ui, STEP_MS = 1000 / 60, down = false;
+    if (ctx.render) ctx.render.qaLog = { n: 1200, buf: [], i: 0, count: 0 };              // R15: renderLog ring buffer (Render.logFrame)
     var M = OE.Model;
 
     function sim() { return game.sim; }
@@ -214,6 +215,45 @@
       },
       adClose: function () { var ok = game.adClose(); frame(); return ok; },
       analyticsLog: function () { return OE.Analytics.buffer.slice(); },
+      /* ---- spec v5.6 (PT4-2 / PT4-3) hooks: rendered-frame log, display-rate emulation, seam scan (QA round 15, R15-HOOKS) ---- */
+      // the last n rendered frames of the player sprite [{t, dt, simT, angle, flipX, worldAngle, wig, x, y, form}] (t, dt, simT in s; angle = drawn rotation, rad);
+      // the log keeps 1200 frames (10 s at 120 Hz) and starts with the page; renderLog(0) / clearRenderLog() empty it
+      renderLog: function (n) { var R = ctx.render; if (n === 0) { QA.clearRenderLog(); return []; } return R.renderLog(n); },
+      clearRenderLog: function () { var L = ctx.render.qaLog; L.buf = []; L.i = 0; L.count = 0; return true; },
+      // the display rate of ?fps=30|60|120 (0 = the browser's own frames)
+      fps: function () { return (OE.app && OE.app.fps) || 0; },
+      // extra (deterministic, works in a hidden tab): n display frames at hz (30 / 60 / 120) through the real frame path (game.update(dt) + ui.sync + render.draw)
+      renderFrames: function (n, hz) {
+        var dt = 1000 / (hz || (OE.app && OE.app.fps) || 60), i;
+        for (i = 0; i < n; i++) { game.update(dt); ui.sync(dt / 1000); ctx.render.draw(dt); }
+        return ctx.render.renderLog(n);
+      },
+      // ACCEPT.SEAM: scans the arena frame (the HUD band, 150 logical px, excluded) for a band of 1..bandRows pixel rows brighter (mean luma 0-1) than the rows
+      // neighbourOffsetPx above and below by more than lumaDeltaMax over at least rowShareMax of the width. Returns {rows:[{y, yLogical, rows, share, dLuma,
+      // nearWaterline}], worst, waterline (canvas px, null in World 7), w, h}; opts.draw false = scan the frame on the canvas as it is (default: draw it first)
+      seamScan: function (opts) {
+        opts = opts || {};
+        if (opts.draw !== false) frame();
+        var A = { lumaDeltaMax: 0.08, rowShareMax: 0.5, bandRows: 3, neighbourOffsetPx: 4, waterlineBandPx: 12 }, VH = OE.BAL.VIEW_H || 1080;
+        var cv = document.getElementById('arena-canvas'), c2 = cv.getContext('2d'), w = cv.width, h = cv.height, k = h / VH, img = c2.getImageData(0, 0, w, h).data;
+        var luma = new Float32Array(w * h), i, j, y, x, q, b, bandRows;
+        for (i = 0, j = 0; i < img.length; i += 4, j++) luma[j] = (0.2126 * img[i] + 0.7152 * img[i + 1] + 0.0722 * img[i + 2]) / 255;
+        var st = game.qaState(), wl = st.waterline === null || st.waterline === undefined ? null : Math.round(st.waterline * k);
+        var off = Math.max(1, Math.round(A.neighbourOffsetPx * k)), y0 = Math.ceil(150 * k), rows = [], worst = { y: -1, rows: 0, share: 0, dLuma: 0 }, r3 = function (v) { return Math.round(v * 1000) / 1000; };
+        for (y = y0 + off; y < h - off - A.bandRows; y++) {
+          for (bandRows = 1; bandRows <= A.bandRows; bandRows++) {
+            var cnt = 0, sd = 0, up = (y - off) * w, dn = (y + bandRows - 1 + off) * w;
+            for (x = 0; x < w; x++) {
+              b = 0; for (q = 0; q < bandRows; q++) b += luma[(y + q) * w + x]; b /= bandRows;
+              var d = Math.min(b - luma[up + x], b - luma[dn + x]); if (d > A.lumaDeltaMax) { cnt++; sd += d; }
+            }
+            var share = cnt / w;
+            if (share > worst.share) worst = { y: y, yLogical: r3(y / k), rows: bandRows, share: r3(share), dLuma: cnt ? r3(sd / cnt) : 0 };
+            if (share >= A.rowShareMax) rows.push({ y: y, yLogical: r3(y / k), rows: bandRows, share: r3(share), dLuma: r3(sd / cnt), nearWaterline: wl !== null && Math.abs(y - wl) <= A.waterlineBandPx * k });
+          }
+        }
+        return { rows: rows, worst: worst, waterline: wl, w: w, h: h, world: st.world, seams: rows.filter(function (r) { return !r.nearWaterline; }).length };
+      },
       triggerEvent: function (id) { var s = sim(); if (!s) return false; var ok = s.startEvent(id, true); game.drainSim(); frame(); return ok; },
       setVisibility: function (v) { game.setVisibility(v); frame(); return true; },
       goOffline: function () {

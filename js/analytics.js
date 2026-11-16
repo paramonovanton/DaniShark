@@ -14,7 +14,7 @@
     Level_Failure: ['lvl', 'world', 'level_in_world', 'cause', 'level_gp_pct', 'duration_s', 'form_reached', 'control_mode', 'continues'],
     // PT4-4 (spec v5.6, R-OE-66..72): the Continue offer and the rewarded ad behind OE.Ads (the placeholder never sends ad_impression / TrackAdRevenue)
     ContinueOffered: ['lvl', 'world', 'level_in_world', 'form', 'level_gp_pct', 'ad_available', 'coins_enabled', 'coins', 'continues_used', 'control_mode'],
-    ContinueChosen: ['lvl', 'world', 'level_in_world', 'choice', 'form', 'continues_used'],
+    ContinueChosen: ['lvl', 'world', 'level_in_world', 'choice', 'form', 'continues_used', 'attempt_choice_n'],
     ContinueApplied: ['lvl', 'world', 'level_in_world', 'method', 'continue_index', 'form'],
     AdRequested: ['ad_placement', 'ad_type', 'provider'],
     AdShown: ['ad_placement', 'ad_type', 'provider'],

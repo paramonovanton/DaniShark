@@ -363,6 +363,34 @@
   };
 
   /* ---------------------------------------------------------------- per-frame sync */
+  /* R15 (iOS memory, QA round 15): the UI canvases (form portraits, form tracks, creature icons, Kraken art) keep a backing store whether they show or not.
+     On the mobile tiers each canvas is sized to the device pixels it covers (layout size x stage scale x dpr x 1.25, in 1/8 steps of its base size, never
+     above it: the HUD Form Track shows 48 x 30 device px from a 160 x 100 canvas on an iPhone) and a canvas that does not show (hidden window, the other
+     HUD layout copy, a layer of another state) is released to 1 x 1. Art.icon and the Creature Icon keep a __redraw, so a canvas that shows again or
+     changes size is drawn again at once. Runs when the shown windows, their states, the HUD layout or the fit change, and every 0.5 s. */
+  P.fitCanvases = function (dt) {
+    var Br = OE.Browser;
+    if (!Br || !Br.mobileTier || !Br.mobileTier() || /[?&]canvasfit=0(&|$)/.test(g.location.search)) return;
+    var W = this.W, sig = String(this.fitGen || 0) + (this.stage.hasAttribute('data-narrow') ? 'N' : 'W'), k;
+    for (k in W) if (W[k]) sig += W[k].classList.contains('on') ? '|' + k + ':' + (W[k].__state || '') : '';
+    this.cvT = (this.cvT || 0) + (dt || 0);
+    if (sig === this.cvSig && this.cvT < 0.5) return;
+    this.cvSig = sig; this.cvT = 0;
+    var S = (OE.fitInfo && OE.fitInfo.scale) || 1, dpr = Br.devDpr ? Br.devDpr() : (g.devicePixelRatio || 1), list = this.stage.querySelectorAll('canvas'), i, c, f, w, h;
+    for (i = 0; i < list.length; i++) {
+      c = list[i]; if (c.id === 'arena-canvas') continue;
+      if (!c.__bw) { c.__bw = c.width; c.__bh = c.height; }
+      if (!c.getClientRects().length || c.offsetWidth < 1) {
+        if (!c.__rel) { c.width = 1; c.height = 1; c.__rel = true; }
+        continue;
+      }
+      f = Math.min(1, Math.max(c.offsetWidth * S * dpr * 1.25 / c.__bw, c.offsetHeight * S * dpr * 1.25 / c.__bh));
+      f = Math.ceil(f * 8) / 8;
+      w = Math.max(8, Math.round(c.__bw * f)); h = Math.max(5, Math.round(c.__bh * f));
+      c.__fw = w; c.__fh = h;
+      if (c.__rel || c.width !== w || c.height !== h) { c.width = w; c.height = h; c.__rel = false; if (c.__redraw) c.__redraw(); }
+    }
+  };
   P.sync = function (dt) {
     var game = this.game, W = this.W, top = game.top(), m = game.main, r = game.run, mode = game.mode;
     var phase = r ? r.phase : '', popup = m.popup;
@@ -403,6 +431,7 @@
     if (popup === 'levelpick' && mode === 'main') this.syncPick();
     if (mode === 'main') { this.state(W.settings, m.popupState); this.syncSettings(W.settings); }
     if (inGame) this.syncGame(top, dt);
+    this.fitCanvases(dt);
     // storage notice (once)
     if (game.provider.blocked && !this.noticeShown && game.mode !== 'loading') {
       this.noticeShown = true; setText(this.notice, T('oe_notice_nosave')); this.notice.classList.remove('info'); this.notice.classList.add('on');
@@ -776,9 +805,12 @@
     if (gpc && gpc.tagName === 'CANVAS') Art.icon(gpc, 8);
     var nc = this.newCreatures(r.world, r.level), line = one(W, 'New Creature Line');
     setText(one(W, 'New Text'), nc.text ? T('oe_start_new', nc.text) : ''); show(line, !!nc.text);
-    var cv = one(W, 'Creature Icon'), ctx = cv.getContext('2d'), def = nc.id && OE.CREATURES[nc.id];
-    ctx.clearRect(0, 0, cv.width, cv.height);
-    if (def) { ctx.save(); ctx.translate(cv.width / 2, cv.height / 2); Art.creature(ctx, def, { L: Math.min(cv.width * 0.86, cv.height * 1.5), t: 0.6, mouth: 0 }); ctx.restore(); }
+    var cv = one(W, 'Creature Icon'), def = nc.id && OE.CREATURES[nc.id];
+    var drawNew = function () {
+      Art.wake(cv); var ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+      if (def) { ctx.save(); ctx.translate(cv.width / 2, cv.height / 2); Art.creature(ctx, def, { L: Math.min(cv.width * 0.86, cv.height * 1.5), t: 0.6, mouth: 0 }); ctx.restore(); }
+    };
+    cv.__redraw = drawNew; drawNew();
     if (OE.Audio) OE.Audio.sfx('start');
   };
   P.syncEvo = function (r) {

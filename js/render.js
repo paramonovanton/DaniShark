@@ -566,8 +566,23 @@
     ctx.beginPath(); ctx.ellipse(0, 0, p.len * 0.55, p.len * 0.3, 0, 0, TAU); ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fill();
     this.plPh = (this.plPh || 0) + this.frameDt * (4 + sp / 60);                              // PT4-2: integrated wiggle phase (the rate follows the speed, the phase never jumps)
     this.plRot = U.clamp(local, -1.3, 1.3); this.plWig = Art.wigOf({ ph: this.plPh });          // QA / tests: the drawn body rotation and wiggle of this frame
+    if (this.qaLog) this.logFrame(sim, p, va);                                                    // R15: OE_QA.renderLog (spec v5.6 qaHooks), only with ?qa=1
     Art.player(ctx, sim.form, { L: p.len, t: this.t, ph: this.plPh, mouth: p.biteT > 0 ? 1 : 0, speedAnim: 4 + sp / 60, hero: true });
     ctx.restore(); ctx.globalAlpha = 1;
+  };
+  // R15 (spec v5.6 qaHooks renderLog): one entry per rendered frame of the player sprite in a ring buffer of qaLog.n entries:
+  // t = render clock (s), dt = frame time (s), simT = simulation time (s), angle = drawn body rotation (rad, sprite space, as drawn), worldAngle = drawn
+  // heading before the facing flip, flipX = the sprite is mirrored (facing left), wig = drawn wiggle, x / y = drawn position (world units)
+  P.logFrame = function (sim, p, va) {
+    var L = this.qaLog, e = { t: +this.t.toFixed(5), dt: +this.frameDt.toFixed(5), simT: +(sim.t || 0).toFixed(5), angle: this.plRot, worldAngle: va, flipX: p.facing < 0, wig: this.plWig, x: p.x, y: p.y, form: sim.form };
+    if (L.buf.length < L.n) L.buf.push(e); else L.buf[L.i] = e;
+    L.i = (L.i + 1) % L.n; L.count++;
+  };
+  P.renderLog = function (n) {
+    var L = this.qaLog; if (!L) return [];
+    var out = L.buf.length < L.n ? L.buf.slice() : L.buf.slice(L.i).concat(L.buf.slice(0, L.i));
+    n = n === undefined ? out.length : Math.max(0, Math.min(out.length, n | 0));
+    return out.slice(out.length - n);
   };
   P.drawSurface = function (ctx, t, sim) {
     var d = t.def, p = sim.player, eligible = t.tier <= sim.form;
