@@ -154,7 +154,7 @@
   cr('abyssal',   { n: 'Abyssal wraith fish', size: 180, k: 'food', ai: 'wraith', spd: 1.0, flee: 0.7, shape: 'fish', c1: '#7a6ae0', c2: '#d8d0ff', asp: 0.4, glow: 0.6 });
   cr('giantsquid7', { n: 'Giant squid', sband: 'deep', size: 230, k: 'pred', ai: 'patrol', spd: 0.5, det: 4, chase: 0.7, shape: 'squid', c1: '#5a2f8a', c2: '#b88cf0', asp: 0.45, sp: { grab: 1 } });
   cr('leviathan', { n: 'Leviathan eel', size: 300, k: 'pred', ai: 'serpent', spd: 0.9, shape: 'eel', c1: '#4a2a6a', c2: '#ff8cf0', asp: 0.16, m: 5, glow: 0.4 });
-  cr('bloop',     { n: 'The Bloop', size: 400, k: 'pas', ai: 'boss', spd: 0, shape: 'bloop', c1: '#3a1f5a', c2: '#ff6fd8', asp: 0.8, vis: 2.4, glow: 0.5 });
+  cr('bloop',     { n: 'The Bloop', size: 400, k: 'pas', ai: 'boss', spd: 0, shape: 'bloop', c1: '#3a1f5a', c2: '#ff6fd8', asp: 0.53, vis: 2.4, glow: 0.5 });
   // QA helper creature: a still fish with a free size (spawn('test_peer', x, y, {size: n}))
   cr('test_peer', { n: 'Test fish', size: 10, k: 'food', ai: 'still', spd: 0, shape: 'fish', c1: '#aaaaaa', c2: '#ffffff', asp: 0.5, art: 'CRT_test' });
 
